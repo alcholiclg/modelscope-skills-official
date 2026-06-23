@@ -1,0 +1,20 @@
+{
+  "name": "modelscope-skills",
+  "description": "Equip your agents with skills to interact with ModelScope — model/dataset management, Studio deployment, MCP services, and Skills Center.",
+  "version": "0.1.0",
+  "author": {
+    "name": "ModelScope"
+  },
+  "homepage": "https://github.com/modelscope/modelscope-skills",
+  "repository": "https://github.com/modelscope/modelscope-skills",
+  "license": "Apache-2.0",
+  "keywords": [
+    "modelscope",
+    "machine-learning",
+    "models",
+    "datasets",
+    "deployment",
+    "mcp",
+    "skills"
+  ]
+}

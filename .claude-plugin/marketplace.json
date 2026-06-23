@@ -1,0 +1,36 @@
+{
+  "name": "modelscope-skills",
+  "owner": {
+    "name": "ModelScope"
+  },
+  "metadata": {
+    "description": "Equip your agents with skills to interact with ModelScope — model/dataset management, Studio deployment, MCP services, and Skills Center.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "ms-hub",
+      "source": "./skills/ms-hub",
+      "skills": "./",
+      "description": "Unified ModelScope operations hub. Manage models, datasets, Studios, MCP services, and skills via CLI, SDK, and OpenAPI."
+    },
+    {
+      "name": "ms-studio-deploy",
+      "source": "./skills/ms-studio-deploy",
+      "skills": "./",
+      "description": "Deploy local projects to ModelScope Studios. Supports Gradio, Streamlit, Docker, and static sites with full deployment workflow and auto-diagnosis."
+    },
+    {
+      "name": "ms-mcp-manage",
+      "source": "./skills/ms-mcp-manage",
+      "skills": "./",
+      "description": "Search, deploy, and configure MCP services for IDEs and agent frameworks."
+    },
+    {
+      "name": "ms-skill-manage",
+      "source": "./skills/ms-skill-manage",
+      "skills": "./",
+      "description": "Search, install, and publish Agent Skills on the ModelScope Skills Center."
+    }
+  ]
+}
