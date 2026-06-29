@@ -95,7 +95,12 @@ curl -X PUT "https://modelscope.cn/openapi/v1/studios/{owner}/{repo_name}/secret
   -H "Content-Type: application/json" \
   -d '{"key": "API_KEY", "value": "new-value"}'
 
-# 删除
-curl -X DELETE "https://modelscope.cn/openapi/v1/studios/{owner}/{repo_name}/secrets/API_KEY" \
-  -H "Authorization: Bearer $MODELSCOPE_API_KEY"
+# 删除（key 放在 body，不是路径参数）
+curl -X DELETE "https://modelscope.cn/openapi/v1/studios/{owner}/{repo_name}/secrets" \
+  -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"key": "API_KEY"}'
 ```
+
+> ⚠️ 删除接口为 `DELETE .../secrets` + body `{"key": "..."}`。
+> 路径形式 `DELETE .../secrets/{key}` 会返回 404 且不生效。

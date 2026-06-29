@@ -14,28 +14,14 @@
       "source": "./skills/ms-hub",
       "strict": false,
       "skills": "./",
-      "description": "Unified ModelScope operations hub. Manage models, datasets, Studios, MCP services, and skills via CLI, SDK, and OpenAPI."
+      "description": "Unified ModelScope operations hub. Manage models, datasets, Studios, MCP services, and Skills Center via OpenAPI, CLI, and SDK."
     },
     {
       "name": "ms-studio-deploy",
       "source": "./skills/ms-studio-deploy",
       "strict": false,
       "skills": "./",
-      "description": "Deploy local projects to ModelScope Studios. Supports Gradio, Streamlit, Docker, and static sites with full deployment workflow and auto-diagnosis."
-    },
-    {
-      "name": "ms-mcp-manage",
-      "source": "./skills/ms-mcp-manage",
-      "strict": false,
-      "skills": "./",
-      "description": "Search, deploy, and configure MCP services for IDEs and agent frameworks."
-    },
-    {
-      "name": "ms-skill-manage",
-      "source": "./skills/ms-skill-manage",
-      "strict": false,
-      "skills": "./",
-      "description": "Search, install, and publish Agent Skills on the ModelScope Skills Center."
+      "description": "Deploy local projects to ModelScope Studios (Gradio / Streamlit / Docker / static). API-first workflow with code sync, log monitoring, and auto-diagnosis."
     }
   ]
 }

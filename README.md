@@ -11,10 +11,10 @@ ModelScope Skills 为 AI Agent 提供 [ModelScope 魔搭社区](https://modelsco
 
 | 名称 | 说明 | 文档 |
 |------|------|------|
-| `ms-hub` | 统一操作入口——模型/数据集搜索下载上传、创空间管理、MCP 服务、技能中心 | [SKILL.md](skills/ms-hub/SKILL.md) |
-| `ms-studio-deploy` | 将本地项目部署到创空间（Gradio / Streamlit / Docker / 静态站），含完整部署流程和自动诊断 | [SKILL.md](skills/ms-studio-deploy/SKILL.md) |
-| `ms-mcp-manage` | 搜索、部署 MCP 服务并配置到 IDE 或 Agent 框架 | [SKILL.md](skills/ms-mcp-manage/SKILL.md) |
-| `ms-skill-manage` | 在技能中心搜索、安装和发布 Skills | [SKILL.md](skills/ms-skill-manage/SKILL.md) |
+| `ms-hub` | 统一操作入口——模型/数据集搜索下载上传、仓库管理、创空间速查、MCP 服务、技能中心 | [SKILL.md](skills/ms-hub/SKILL.md) |
+| `ms-studio-deploy` | 将本地项目部署到创空间（Gradio / Streamlit / Docker / 静态站），API 优先的完整部署流程和自动诊断 | [SKILL.md](skills/ms-studio-deploy/SKILL.md) |
+
+> MCP 服务管理与技能中心发布已并入 `ms-hub`：常用操作见 SKILL.md 第八/九节，展开细节见 `ms-hub/references/mcp-services.md` 与 `skills-center.md`。
 
 ## 安装
 
@@ -36,7 +36,7 @@ cp -r modelscope-skills/skills/ms-hub ~/.agents/skills/
 
 ### Cursor
 
-通过 Cursor Marketplace 安装，或将 `skills/` 下的文件夹复制到 `.cursor/skills/`。
+将 `skills/` 下的技能文件夹复制到项目的 `.cursor/skills/` 目录，Cursor 会自动发现其中的 SKILL.md。
 
 ### Claude Code
 
@@ -77,12 +77,13 @@ export MODELSCOPE_API_KEY="your_token"  # https://modelscope.cn/my/myaccesstoken
 
 ```
 ms-hub（统一入口 / 速查）
- ├── ms-studio-deploy（创空间完整部署流程）
- ├── ms-mcp-manage（MCP 服务详细配置）
- └── ms-skill-manage（技能发布流程）
+ ├── Hub 模型/数据集/仓库操作
+ ├── MCP 服务搜索·部署·配置  → references/mcp-services.md
+ ├── 技能中心搜索·安装·发布   → references/skills-center.md
+ └── ms-studio-deploy（创空间完整部署流程，API 优先）
 ```
 
-`ms-hub` 覆盖常用操作的速查命令；遇到复杂场景时自动 hand off 到专项 Skill。
+`ms-hub` 覆盖常用操作的速查命令；MCP 与技能中心的展开细节下沉到 references，创空间的多步长流程独立为 `ms-studio-deploy`。
 
 ## 贡献
 

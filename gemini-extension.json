@@ -1,0 +1,5 @@
+{
+  "name": "modelscope-skills",
+  "version": "0.1.0",
+  "description": "ModelScope operations skills — model/dataset management, Studio deployment, MCP services, and Skills Center. Skills are auto-discovered from the skills/ directory."
+}

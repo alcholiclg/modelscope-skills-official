@@ -1,10 +1,9 @@
 ---
 name: ms-hub
 description: >-
-  ModelScope 魔搭社区统一操作入口。覆盖模型/数据集搜索下载上传、仓库管理、创空间部署、MCP 服务管理、
-  技能中心操作。当用户提到 ModelScope、魔搭、或任何平台操作时使用此 skill。
-  对于复杂的创空间部署流程使用 ms-studio-deploy，MCP 服务详细配置使用 ms-mcp-manage，
-  技能发布流程使用 ms-skill-manage。
+  ModelScope 魔搭社区统一操作入口。覆盖模型/数据集搜索下载上传、仓库管理、创空间部署、
+  MCP 服务搜索部署配置、技能中心搜索安装发布。当用户提到 ModelScope、魔搭、或任何平台操作时使用此 skill。
+  复杂的创空间部署流程使用 ms-studio-deploy；MCP 与技能中心的展开细节见本 skill 的 references。
 ---
 
 # ModelScope 统一操作入口
@@ -83,15 +82,15 @@ export MODELSCOPE_API_KEY="your_token"
 │   ├── 部署服务 → CLI: ms mcp deploy @author/name
 │   ├── 卸载服务 → CLI: ms mcp undeploy @author/name
 │   ├── 我的已部署 → GET /mcp/servers/operational
-│   └── 详细配置流程 → 详见 ms-mcp-manage
+│   └── IDE 配置 / 完整编排 → 详见 references/mcp-services.md
 │
 ├─── Skills：技能中心 ────────────────────────────
 │   ├── 搜索技能 → GET /skills?search=...
 │   ├── 查看详情 → GET /skills/{id}
 │   ├── 安装技能 → CLI: ms skills add @author/skill-name
 │   ├── 发布技能 → POST /files/upload + POST /skills
-│   ├── 更新技能 → CLI: ms settings @author/name key=value --repo-type skill
-│   └── 完整发布流程 → 详见 ms-skill-manage
+│   ├── 更新技能 → PATCH /skills/{owner}/{skill_name}/settings
+│   └── 分类体系 / 打包规范 / 完整发布 → 详见 references/skills-center.md
 │
 ├─── 用户信息 ───────────────────────────────────
 │   └── GET /users/me
@@ -411,6 +410,8 @@ ModelScope 目前可以通过前述 API/SDK/CLI 的组合可以完成数据集�
 
 通过辅助脚本 `scripts/ms_inspect_dataset.py` 快速了解数据集的文件结构、字段 schema 和样本内容。脚本内部调用 SDK（`HubApi.dataset_info` + `MsDataset.load`）完成操作。
 
+> 下方示例用 `uv run`（零配置）；已安装 modelscope 的环境也可直接 `python scripts/ms_inspect_dataset.py ...`，参见文末「工具脚本」。
+
 ```bash
 # 完整检查（文件结构 + schema + 样本预览）
 uv run scripts/ms_inspect_dataset.py \
@@ -484,8 +485,9 @@ commits = api.list_repo_commits(
 
 ## 七、创空间操作（Studio）
 
-> 完整部署流程（含代码同步、MCP 工具配置、诊断修复）→ ms-studio-deploy
+> 完整部署流程（含代码同步、诊断修复）→ ms-studio-deploy（**以 OpenAPI 为事实来源**，CLI 为等价别名）
 >
+> CLI 由 modelscope_hub 驱动，是 OpenAPI 的 1:1 薄包装；API 优先的 Python 入口为 `from modelscope_hub import HubApi`。
 > 如果 agent 已配置 studio-mcp 工具，也可使用 MCP 工具（`createStudio`, `deployStudio` 等）。
 
 ### 创建创空间
@@ -575,6 +577,11 @@ curl -X POST "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/secrets" 
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"key": "API_KEY", "value": "sk-xxx"}'
+# 删除：key 放 body，不是路径参数（DELETE .../secrets/{key} 会 404）
+curl -X DELETE "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/secrets" \
+  -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"key": "API_KEY"}'
 ```
 
 ### 代码同步
@@ -586,7 +593,9 @@ git push -u modelscope master
 
 ## 八、MCP 服务操作
 
-> 详细服务发现与 IDE 配置流程 → ms-mcp-manage
+> 完整编排、IDE 配置模板、SDK↔OpenAPI 字段差异 → 详见 `references/mcp-services.md`
+>
+> 分页上限 `page_number × page_size ≤ 100`（服务端强制，超出 HTTP 403）。
 
 ### 搜索 MCP 服务
 
@@ -614,14 +623,17 @@ curl "https://modelscope.cn/openapi/v1/mcp/servers/@amap/amap-maps" \
 
 ### 部署与卸载
 
+部署时 **`transport_type` 必填**，合法值 `sse` / `streamable_http`；部署的 transport 决定返回的唯一 URL（`sse`→`.../sse`，`streamable_http`→`.../mcp`）。
+
 ```bash
-# CLI
+# CLI（默认 sse；另一种用 --transport-type streamable_http）
 ms mcp deploy @amap/amap-maps
 ms mcp undeploy @amap/amap-maps
 
-# OpenAPI
+# OpenAPI（必须带 transport_type，否则 HTTP 400 invalid transport_type）
 curl -X POST "https://modelscope.cn/openapi/v1/mcp/servers/@amap/amap-maps/deploy" \
-  -H "Authorization: Bearer $MODELSCOPE_API_KEY"
+  -H "Authorization: Bearer $MODELSCOPE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"transport_type": "streamable_http"}'
 curl -X DELETE "https://modelscope.cn/openapi/v1/mcp/servers/@amap/amap-maps/undeploy" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 ```
@@ -657,7 +669,7 @@ operational = mcp.list_operational_mcp_servers()
 
 ## 九、技能中心操作（Skills）
 
-> 完整发布流程 → ms-skill-manage
+> 分类体系、打包规范、完整发布/更新/安装 → 详见 `references/skills-center.md`
 
 ### 搜索技能
 
@@ -741,28 +753,39 @@ ms clear-cache                             # 清理缓存
 |----|------|------|
 | Hub | 无 PR 系统 | 协作通过直接 push 完成 |
 | Hub | 无行级预览 API | 需 SDK 本地加载检查 |
-| Hub | 分页上限 | `page_number × page_size ≤ 3000` |
+| Hub | 分页上限 | `page_number × page_size ≤ 3000`；`/models` 单页 `page_size ≤ 50` |
 | Hub | 默认分支 master | 非 main |
 | Hub | 标签不可删除 | 只能创建 |
 | Studio | Docker 需实名 | 阿里云账号绑定 |
 | Studio | 端口固定 7860 | 不可用 8080 |
+| Studio | 无编程删除 | OpenAPI `DELETE /studios/{id}` 返回 404；SDK/CLI `delete_repo` 废弃且不支持 studio。删除需网页控制台，编程侧只能 `stop` |
+| MCP | 部署 `transport_type` 必填 | 合法 `sse`/`streamable_http`，否则 HTTP 400 |
+| MCP | 分页上限 ≤ 100 | `page × size > 100` 返回 HTTP 403 |
 | MCP | SDK 无部署/卸载 | 使用 CLI `ms mcp deploy/undeploy` 或 OpenAPI |
 | Skills | CLI 仅支持 `add` | 暂无 `list`/`update`/`remove` 子命令 |
 
 ## 工具脚本
 
-| 脚本 | 用途 | 执行方式 |
-|------|------|----------|
-| `scripts/ms_read_file.py` | 下载并读取仓库文件内容 | `uv run scripts/ms_read_file.py` |
-| `scripts/ms_inspect_dataset.py` | 深度检查数据集结构和内容 | `uv run scripts/ms_inspect_dataset.py` |
+| 脚本 | 用途 |
+|------|------|
+| `scripts/ms_read_file.py` | 下载并读取仓库文件内容 |
+| `scripts/ms_inspect_dataset.py` | 深度检查数据集结构和内容 |
 
-## 与专项 Skill 的关系
+两种执行方式（任选其一）：
 
-| 本 Skill（ms-hub） | 专项 Skill | 职责分界 |
-|---------------------|------------|----------|
-| Studio 速查：创建/部署/停止/日志 | ms-studio-deploy | 完整 10 步部署流程、代码同步、诊断修复 |
-| MCP 速查：搜索/部署/卸载 | ms-mcp-manage | IDE 配置模板、完整使用流程、SDK 细节 |
-| Skills 速查：搜索/安装/发布 | ms-skill-manage | 发布流程、目录规范、分类体系 |
+```bash
+# 方式一：已安装 modelscope 的环境直接用 python（与「环境要求」一致）
+python scripts/ms_inspect_dataset.py --dataset_id "AI-ModelScope/alpaca-gpt4-data-zh" --operation full
 
-> **原则**：本 Skill 提供「能直接用的速查命令」；专项 Skill 提供「需要决策判断的引导流程」。
-> Agent 在用户意图明确时直接执行本 Skill 的命令，意图模糊或需要多步决策时 hand off 到专项 Skill。
+# 方式二：uv 零配置（脚本含 PEP 723 内联依赖，自动建临时环境）
+uv run scripts/ms_inspect_dataset.py --dataset_id "AI-ModelScope/alpaca-gpt4-data-zh" --operation full
+```
+
+## 与专项 Skill / references 的关系
+
+| 域 | 在 ms-hub | 展开位置 |
+|----|-----------|----------|
+| Studio | 速查：创建/部署/停止/日志 | **ms-studio-deploy**（完整部署流程、代码同步、诊断修复，API 优先） |
+| MCP | 速查：搜索/详情/部署/卸载/已部署 | `references/mcp-services.md`（IDE 配置模板、完整编排、字段差异） |
+| Skills | 速查：搜索/详情/安装/发布/更新 | `references/skills-center.md`（分类体系、打包规范、发布流程） |
+

@@ -11,10 +11,10 @@ This repository follows the [Agent Skills](https://agentskills.io/home) standard
 
 | Name | Description | Docs |
 |------|-------------|------|
-| `ms-hub` | Unified operations hub — model/dataset search, download, upload, Studio management, MCP services, Skills Center | [SKILL.md](skills/ms-hub/SKILL.md) |
-| `ms-studio-deploy` | Deploy local projects to Studios (Gradio / Streamlit / Docker / static), full workflow with auto-diagnosis | [SKILL.md](skills/ms-studio-deploy/SKILL.md) |
-| `ms-mcp-manage` | Search, deploy, and configure MCP services for IDEs or agent frameworks | [SKILL.md](skills/ms-mcp-manage/SKILL.md) |
-| `ms-skill-manage` | Search, install, and publish Skills on the Skills Center | [SKILL.md](skills/ms-skill-manage/SKILL.md) |
+| `ms-hub` | Unified operations hub — model/dataset search/download/upload, repo management, Studio quick-ops, MCP services, Skills Center | [SKILL.md](skills/ms-hub/SKILL.md) |
+| `ms-studio-deploy` | Deploy local projects to Studios (Gradio / Streamlit / Docker / static), API-first workflow with auto-diagnosis | [SKILL.md](skills/ms-studio-deploy/SKILL.md) |
+
+> MCP service management and Skills Center publishing are now folded into `ms-hub`: common ops live in SKILL.md §8/§9, with depth in `ms-hub/references/mcp-services.md` and `skills-center.md`.
 
 ## Installation
 
@@ -36,7 +36,7 @@ cp -r modelscope-skills/skills/ms-hub ~/.agents/skills/
 
 ### Cursor
 
-Install via Cursor Marketplace, or copy skill folders from `skills/` into `.cursor/skills/`.
+Copy the skill folders from `skills/` into your project's `.cursor/skills/` directory; Cursor auto-discovers the SKILL.md files there.
 
 ### Claude Code
 
@@ -77,12 +77,13 @@ export MODELSCOPE_API_KEY="your_token"  # https://modelscope.cn/my/myaccesstoken
 
 ```
 ms-hub (unified entry / quick reference)
- ├── ms-studio-deploy (full Studio deployment workflow)
- ├── ms-mcp-manage (MCP service configuration)
- └── ms-skill-manage (skill publishing workflow)
+ ├── Hub model/dataset/repo operations
+ ├── MCP service search·deploy·configure  → references/mcp-services.md
+ ├── Skills Center search·install·publish  → references/skills-center.md
+ └── ms-studio-deploy (full Studio deployment workflow, API-first)
 ```
 
-`ms-hub` covers common operations as quick-reference commands; complex scenarios automatically hand off to specialized skills.
+`ms-hub` covers common operations as quick-reference commands; MCP and Skills Center depth lives in references, while the multi-step Studio deployment is split out into `ms-studio-deploy`.
 
 ## Contributing
 
