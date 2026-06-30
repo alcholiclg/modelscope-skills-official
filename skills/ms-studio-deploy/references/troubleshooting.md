@@ -6,10 +6,10 @@
 |----------|------|----------|
 | `ModuleNotFoundError: No module named 'xxx'` | 缺少依赖 | 添加到 `requirements.txt` |
 | `SyntaxError` | Python 语法错误 | 检查并修复代码 |
-| `MemoryError` / `OOMKilled` | 内存不足 | 升级硬件配置或优化内存使用 |
+| `MemoryError` / `OOMKilled` | 内存不足 | 优化内存使用或升级硬件；如需切换到付费资源，先明确告知费用风险并得到用户明确授权 |
 | `Permission denied` | 文件权限问题 | `chmod +x` 或检查目录权限 |
 | `FileNotFoundError` | 文件路径不对 | 检查文件是否已提交到 Git |
-| 环境变量为空/None | 未配置 Secret | 通过 MCP 或 OpenAPI 添加 |
+| 变量为空/None | 未配置明文或密文变量 | 通过 OpenAPI 添加；敏感信息用密文变量 |
 | `ImportError: cannot import name` | 版本不兼容 | 在 requirements.txt 中指定版本 |
 
 ## Docker 特有错误
@@ -55,7 +55,7 @@
 │   ├── 依赖缺失 → 更新 requirements.txt
 │   ├── 端口错误 → 确保 7860
 │   ├── 代码错误 → 修复代码
-│   └── 环境变量 → 检查 Secrets 配置
+│   └── 变量 → 检查明文/密文变量配置
 │
 └── 修复后重新部署
     git add . && git commit -m "fix" && git push modelscope master

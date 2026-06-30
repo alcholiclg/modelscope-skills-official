@@ -2,10 +2,10 @@
 name: ms-studio-deploy
 description: >-
   将本地项目部署到 ModelScope 创空间 (Studio)。支持 Gradio、Streamlit、Docker、静态网站类型。
-  覆盖创建、代码同步、部署、日志监控、环境变量管理、自动诊断修复。
+  覆盖创建、代码同步、部署、日志监控、明文/密文变量管理、自动诊断修复。
   当用户提到部署到 ModelScope、创空间、魔搭社区、魔搭、Studio 部署、Gradio 部署、Streamlit 部署、
   Docker 部署、FastAPI 部署、静态网站部署，或者想要把本地应用、Web 应用、API 服务发布到云端时使用。
-  也适用于用户遇到创空间构建失败、运行错误需要排查日志、想要更新已部署的创空间、管理创空间环境变量等场景。
+  也适用于用户遇到创空间构建失败、运行错误需要排查日志、想要更新已部署的创空间、管理创空间明文或密文变量等场景。
   不适用于: Hub 仓库管理、模型/数据集操作、MCP/技能管理、模型训练、模型评测。
 ---
 
@@ -29,8 +29,9 @@ description: >-
 ├── 查看创空间状态/日志
 │   └── GET /studios/{o}/{r}/logs/run（或 ms logs --log-type run）
 │
-├── 管理环境变量
-│   └── GET/POST/PUT/DELETE /studios/{o}/{r}/secrets（或 ms secret ...）
+├── 管理变量
+│   ├── 明文变量：GET/POST/PUT/DELETE /studios/{o}/{r}/variables
+│   └── 密文变量：GET/POST/PUT/DELETE /studios/{o}/{r}/secrets（或 ms secret ...）
 │
 └── 仓库文件管理 / 模型数据集操作
     └── hand off → ms-hub
@@ -86,17 +87,24 @@ OpenAPI 基础约定：
 | 停止 | `POST /studios/{o}/{r}/stop` | `ms stop o/r --repo-type studio` | `api.stop_repo("o/r")` | `stopStudio` |
 | 日志 | `GET /studios/{o}/{r}/logs/{run\|build}` | `ms logs o/r --log-type run` | `api.get_repo_logs("o/r", log_type="run")` | `getStudioLogs` |
 | 更新设置 | `PATCH /studios/{o}/{r}/settings` | `ms settings o/r --repo-type studio k=v` | `api.update_repo_settings("o/r","studio",**kw)` | `updateStudioSettings` |
-| 列出环境变量 | `GET /studios/{o}/{r}/secrets` | `ms secret list o/r` | `api.list_secrets("o/r")` | `listStudioSecrets` |
-| 添加环境变量 | `POST /studios/{o}/{r}/secrets` | `ms secret add o/r K V` | `api.add_secret("o/r","K","V")` | `addStudioSecret` |
-| 更新环境变量 | `PUT /studios/{o}/{r}/secrets` | `ms secret update o/r K V` | `api.update_secret("o/r","K","V")` | `updateStudioSecret` |
-| 删除环境变量 | `DELETE /studios/{o}/{r}/secrets` | `ms secret delete o/r K` | `api.delete_secret("o/r","K")` | `deleteStudioSecret` |
+| 查询可用硬件 | `GET /studios/hardware?sdk_type=gradio[&studio=o/r]` | 暂无 | 暂无 | `listHardware` |
+| 查询 SDK 版本 | `GET /studios/sdk-versions?sdk_type=gradio` | 暂无 | 暂无 | `listSdkVersions` |
+| 查询基础镜像 | `GET /studios/base-images` | 暂无 | 暂无 | `listBaseImages` |
+| 列出明文变量 | `GET /studios/{o}/{r}/variables` | 暂无 | 暂无 | `listStudioVariables` |
+| 添加明文变量 | `POST /studios/{o}/{r}/variables` | 暂无 | 暂无 | `addStudioVariable` |
+| 更新明文变量 | `PUT /studios/{o}/{r}/variables` | 暂无 | 暂无 | `updateStudioVariable` |
+| 删除明文变量 | `DELETE /studios/{o}/{r}/variables` | 暂无 | 暂无 | `deleteStudioVariable` |
+| 列出密文变量 | `GET /studios/{o}/{r}/secrets` | `ms secret list o/r` | `api.list_secrets("o/r")` | `listStudioSecrets` |
+| 添加密文变量 | `POST /studios/{o}/{r}/secrets` | `ms secret add o/r K V` | `api.add_secret("o/r","K","V")` | `addStudioSecret` |
+| 更新密文变量 | `PUT /studios/{o}/{r}/secrets` | `ms secret update o/r K V` | `api.update_secret("o/r","K","V")` | `updateStudioSecret` |
+| 删除密文变量 | `DELETE /studios/{o}/{r}/secrets` | `ms secret delete o/r K` | `api.delete_secret("o/r","K")` | `deleteStudioSecret` |
 
 > **`HubApi` 是驱动 `ms` CLI 的同一引擎**，是 API 优先的 Python 入口：
 > ```python
 > from modelscope_hub import HubApi
 > api = HubApi(); api.login("$MODELSCOPE_API_KEY")
 > ```
-> 注意它与旧版 `modelscope.hub.api.HubApi` 是两套类：旧版尚未打通 deploy/stop 等创空间方法，**新版 `modelscope_hub.HubApi` 已打通**（其 `deploy_repo`/`stop_repo`/`get_repo_logs`/secret 系列默认 `repo_type="studio"`）。
+> 注意它与旧版 `modelscope.hub.api.HubApi` 是两套类：旧版尚未打通 deploy/stop 等创空间方法，**新版 `modelscope_hub.HubApi` 已打通**（其 `deploy_repo`/`stop_repo`/`get_repo_logs`/密文变量 secret 系列默认 `repo_type="studio"`）。
 
 > **MCP 工具（可选）** — 上表最后一列为 `studio-mcp` 服务提供的等价工具，语义与同行 OpenAPI 调用一致；agent 已配置该服务时可直接调用，无需配置时忽略此列。首次配置方法见文末附录。
 
@@ -119,10 +127,10 @@ OpenAPI 基础约定：
 
 | 类型 | 检测条件 | 入口文件 | 备注 |
 |------|----------|----------|------|
-| `gradio` | `app.py` 导入 gradio | `app.py` | 需设置 `sdk_version`, `base_image` |
-| `streamlit` | `app.py` 使用 streamlit | `app.py` | 需设置 `base_image` |
+| `gradio` | `app.py` 导入 gradio | `app.py` | 按需查询 `sdk_version`, `base_image`, `hardware` |
+| `streamlit` | `app.py` 使用 streamlit | `app.py` | 按需查询 `base_image`, `hardware` |
 | `docker` | 存在 `Dockerfile` | `Dockerfile` | 端口必须 7860 |
-| `static` | 存在 `index.html`（已构建） | `index.html` | 不支持构建步骤 |
+| `static` | 存在 `index.html`（已构建） | `index.html` | 不支持构建步骤；不选择硬件 |
 
 选择建议：`static` 不支持构建步骤，文件必须已构建；需构建的前端项目用 `docker`；不确定时用 `docker`。
 
@@ -138,6 +146,21 @@ curl "https://modelscope.cn/openapi/v1/users/me" -H "Authorization: Bearer $MODE
 `repo` 从项目目录名或用户指定获取。
 
 ### Step 3: 创建或更新创空间
+
+创建或改设置前先查可用选项，避免写死过期配置：
+
+```bash
+curl "https://modelscope.cn/openapi/v1/studios/hardware?sdk_type=${sdk_type}" \
+  -H "Authorization: Bearer $MODELSCOPE_API_KEY"
+curl "https://modelscope.cn/openapi/v1/studios/sdk-versions?sdk_type=gradio" \
+  -H "Authorization: Bearer $MODELSCOPE_API_KEY"
+curl "https://modelscope.cn/openapi/v1/studios/base-images" \
+  -H "Authorization: Bearer $MODELSCOPE_API_KEY"
+```
+
+已有创空间时可给硬件查询追加 `&studio=${owner}/${repo}`，让免费资源按该空间可用额度返回。选择 `hardware` 时使用返回项的 `name`；付费资源格式为 `paid/<InstanceType>`。选择 Gradio `sdk_version` 时使用返回项的 `version`。选择 `base_image` 时使用返回项的 `name`。
+
+**付费资源授权要求：** 如果准备把 `hardware` 设置为 `paid/<InstanceType>` 或返回项 `resource_type=paid`，必须先明确告知用户这会对其 ModelScope 绑定的阿里云账号产生费用，并得到用户明确授权后才能创建、更新设置或重新部署。未获授权时只能选择免费资源。
 
 检查是否已存在：
 
@@ -156,7 +179,8 @@ curl -X POST "https://modelscope.cn/openapi/v1/studios" \
     "owner": "'"${owner}"'",
     "repo_name": "'"${repo}"'",
     "sdk_type": "gradio",
-    "private": true,
+    "visibility": "private",
+    "hardware": "platform/2v-cpu-16g-mem",
     "display_name": "My App"
   }'
 # 等价 CLI： ms create ${owner}/${repo} --repo-type studio --sdk-type gradio --private
@@ -167,11 +191,11 @@ curl -X POST "https://modelscope.cn/openapi/v1/studios" \
 ```bash
 curl -X PATCH "https://modelscope.cn/openapi/v1/studios/${owner}/${repo}/settings" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" -H "Content-Type: application/json" \
-  -d '{"sdk_type": "gradio", "sdk_version": "5.0"}'
-# 等价 CLI： ms settings ${owner}/${repo} --repo-type studio sdk_type=gradio sdk_version=5.0
+  -d '{"sdk_type": "gradio", "sdk_version": "6.2.0", "base_image": "ubuntu22.04-py311-torch2.9.1-modelscope1.35.0"}'
+# 等价 CLI： ms settings ${owner}/${repo} --repo-type studio sdk_type=gradio sdk_version=6.2.0
 ```
 
-**硬件配置参考：** 免费 `platform/2v-cpu-16g-mem`；xGPU 需申请（https://modelscope.cn/docs/studios/xGPU）。
+`sdk_type`、`sdk_version`、`base_image`、`hardware` 修改后需重新部署才能生效。xGPU 需申请（https://modelscope.cn/docs/studios/xGPU）。
 
 ### Step 4: 处理敏感信息
 
@@ -185,7 +209,7 @@ import os
 api_key = os.environ.get("API_KEY")
 ```
 
-汇总环境变量清单，供 Step 6 使用。
+汇总变量清单，供 Step 6 使用：非敏感配置放明文变量，API Key、Token、密码等敏感信息放密文变量。
 
 ### Step 5: 同步代码到创空间 ⚠️ 唯一的非 API 操作
 
@@ -218,21 +242,50 @@ git add . && git commit -m "Deploy to ModelScope Studio"
 git push -u modelscope master
 ```
 
-### Step 6: 配置环境变量
+### Step 6: 配置明文/密文变量
 
-根据 Step 4 的清单配置（API 优先；secret 删除务必用 body 形式，见下方注意）：
+根据 Step 4 的清单配置（API 优先）。明文变量返回 key 和 value，仅用于非敏感配置：
 
 ```bash
-# 列出已配置
-curl "https://modelscope.cn/openapi/v1/studios/${owner}/${repo}/secrets" -H "Authorization: Bearer $MODELSCOPE_API_KEY"
+# 列出明文变量
+curl "https://modelscope.cn/openapi/v1/studios/${owner}/${repo}/variables" \
+  -H "Authorization: Bearer $MODELSCOPE_API_KEY"
+# 添加
+curl -X POST "https://modelscope.cn/openapi/v1/studios/${owner}/${repo}/variables" \
+  -H "Authorization: Bearer $MODELSCOPE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"key": "GRADIO_TEMP_DIR", "value": "/tmp/gradio"}'
+# 更新
+curl -X PUT "https://modelscope.cn/openapi/v1/studios/${owner}/${repo}/variables" \
+  -H "Authorization: Bearer $MODELSCOPE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"key": "GRADIO_TEMP_DIR", "value": "/mnt/workspace/tmp"}'
+# 删除
+curl -X DELETE "https://modelscope.cn/openapi/v1/studios/${owner}/${repo}/variables" \
+  -H "Authorization: Bearer $MODELSCOPE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"key": "GRADIO_TEMP_DIR"}'
+```
+
+密文变量不会返回 value，用于 API Key、Token、密码等敏感信息：
+
+```bash
+# 列出密文变量（只返回 key）
+curl "https://modelscope.cn/openapi/v1/studios/${owner}/${repo}/secrets" \
+  -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 # 添加
 curl -X POST "https://modelscope.cn/openapi/v1/studios/${owner}/${repo}/secrets" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" -H "Content-Type: application/json" \
   -d '{"key": "API_KEY", "value": "sk-xxx"}'
-# 等价 CLI： ms secret {list,add,update,delete} ${owner}/${repo}
+# 更新
+curl -X PUT "https://modelscope.cn/openapi/v1/studios/${owner}/${repo}/secrets" \
+  -H "Authorization: Bearer $MODELSCOPE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"key": "API_KEY", "value": "new-value"}'
+# 删除
+curl -X DELETE "https://modelscope.cn/openapi/v1/studios/${owner}/${repo}/secrets" \
+  -H "Authorization: Bearer $MODELSCOPE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"key": "API_KEY"}'
+# 等价 CLI（仅密文变量）： ms secret {list,add,update,delete} ${owner}/${repo}
 ```
 
-> ⚠️ **删除环境变量**用 `DELETE /studios/{o}/{r}/secrets` 并在 **body** 传 `{"key":"API_KEY"}`，**不是** `DELETE .../secrets/API_KEY`（路径形式返回 404 不生效）。
+> ⚠️ 删除明文/密文变量都用 `DELETE .../variables` 或 `DELETE .../secrets` 并在 **body** 传 `{"key":"..."}`，不是 `DELETE .../{key}` 路径形式。
 
 ### Step 7: 部署创空间
 
@@ -267,9 +320,9 @@ curl "https://modelscope.cn/openapi/v1/studios/${owner}/${repo}/logs/build" -H "
 |----------|----------|
 | `ModuleNotFoundError` | 添加到 requirements.txt |
 | `SyntaxError` | 修复代码语法 |
-| `MemoryError` | 建议升级硬件配置 |
+| `MemoryError` | 建议优化内存或升级硬件配置；如需切换到付费资源，先按 Step 3 获取明确授权 |
 | `Permission denied` | 检查文件权限 |
-| 环境变量为空 | 检查 Step 6 |
+| 变量为空 | 检查 Step 6 |
 
 **Docker 特有错误：**
 
@@ -286,7 +339,7 @@ curl "https://modelscope.cn/openapi/v1/studios/${owner}/${repo}/logs/build" -H "
 
 提供创空间 URL：`https://modelscope.cn/studios/${owner}/${repo}`
 
-> 如果创空间为私有，提示用户：「部署已成功，当前为私有。是否需要改为公开？」，确认后 `PATCH .../settings` 传 `{"private": false}`（或 `ms settings ${owner}/${repo} --repo-type studio private=false`）。
+> 如果创空间为私有，提示用户：「部署已成功，当前为私有。是否需要改为公开？」确认后 `PATCH .../settings` 传 `{"visibility": "public"}`（或 `ms settings ${owner}/${repo} --repo-type studio private=false`）。
 
 ## Docker 创空间参考
 
@@ -311,8 +364,9 @@ curl "https://modelscope.cn/openapi/v1/studios/${owner}/${repo}/logs/build" -H "
 2. 超过 100MB 文件必须用 Git LFS
 3. Docker 类型首次构建约 3-5 分钟，其他类型启动较快
 4. 免费配额有时长限制
-5. 代码中禁止硬编码敏感信息，必须通过环境变量注入
-6. 创空间**无法通过编程接口删除**：OpenAPI `DELETE /openapi/v1/studios/{id}` 返回 404；SDK/CLI 的 `delete_repo` 已废弃且不支持 studio。删除只能到网页控制台 https://modelscope.cn （其走 cookie 鉴权的内部接口，Bearer token 调用返回 401）。编程侧只能停止（`stop`）。
+5. 切换到付费硬件资源会对用户 ModelScope 绑定的阿里云账号产生费用，必须先得到用户明确授权
+6. 代码中禁止硬编码敏感信息，必须通过密文变量注入；非敏感配置可用明文变量
+7. 创空间**无法通过编程接口删除**：OpenAPI `DELETE /openapi/v1/studios/{id}` 返回 404；SDK/CLI 的 `delete_repo` 已废弃且不支持 studio。删除只能到网页控制台 https://modelscope.cn （其走 cookie 鉴权的内部接口，Bearer token 调用返回 401）。编程侧只能停止（`stop`）。
 
 ## 参考文档
 

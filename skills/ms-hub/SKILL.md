@@ -73,7 +73,9 @@ export MODELSCOPE_API_KEY="your_token"
 │   ├── 查看日志 → CLI: ms logs owner/repo --log-type run
 │   ├── 停止 → CLI: ms stop owner/repo --repo-type studio
 │   ├── 更新设置 → CLI: ms settings owner/repo key=value --repo-type studio
-│   ├── 环境变量 → CLI: ms secret {list,add,update,delete} owner/repo
+│   ├── 可用配置 → GET /studios/hardware, /studios/sdk-versions, /studios/base-images
+│   ├── 明文变量 → GET/POST/PUT/DELETE /studios/{owner}/{repo}/variables
+│   ├── 密文变量 → GET/POST/PUT/DELETE /studios/{owner}/{repo}/secrets（或 ms secret ...）
 │   └── 完整部署流程 → 详见 ms-studio-deploy
 │
 ├─── MCP：服务管理 ──────────────────────────────
@@ -500,7 +502,7 @@ ms create USERNAME/my-app --repo-type studio --sdk-type gradio --private
 curl -X POST "https://modelscope.cn/openapi/v1/studios" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"owner": "USERNAME", "repo_name": "my-app", "sdk_type": "gradio", "private": true}'
+  -d '{"owner": "USERNAME", "repo_name": "my-app", "sdk_type": "gradio", "visibility": "private"}'
 ```
 
 | sdk_type | 适用场景 |
@@ -509,6 +511,21 @@ curl -X POST "https://modelscope.cn/openapi/v1/studios" \
 | `streamlit` | Streamlit 应用 |
 | `docker` | 自定义 Docker（端口必须 7860） |
 | `static` | 纯静态网站（已构建） |
+
+### 查询可用配置
+
+```bash
+curl "https://modelscope.cn/openapi/v1/studios/hardware?sdk_type=gradio" \
+  -H "Authorization: Bearer $MODELSCOPE_API_KEY"
+curl "https://modelscope.cn/openapi/v1/studios/sdk-versions?sdk_type=gradio" \
+  -H "Authorization: Bearer $MODELSCOPE_API_KEY"
+curl "https://modelscope.cn/openapi/v1/studios/base-images" \
+  -H "Authorization: Bearer $MODELSCOPE_API_KEY"
+```
+
+已有创空间时可给硬件查询追加 `&studio=USERNAME/my-app`。`hardware` 使用返回项的 `name`；付费资源格式为 `paid/<InstanceType>`。Gradio `sdk_version` 使用返回项的 `version`，`base_image` 使用返回项的 `name`。
+
+**付费资源授权要求：** 使用 `paid/<InstanceType>` 或返回项 `resource_type=paid` 会对用户 ModelScope 绑定的阿里云账号产生费用；必须先明确告知并得到用户明确授权，才能创建、更新设置或重新部署。
 
 ### 部署/重启
 
@@ -556,12 +573,33 @@ ms settings USERNAME/my-app --repo-type studio display_name="新名称" private=
 curl -X PATCH "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/settings" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"display_name": "新名称", "private": false, "sdk_type": "gradio"}'
+  -d '{"display_name": "新名称", "visibility": "public", "sdk_type": "gradio"}'
 ```
 
-可更新字段：`display_name`, `description`, `private`, `sdk_type`, `sdk_version`, `license`。
+可更新字段：`display_name`, `description`, `visibility`, `sdk_type`, `sdk_version`, `base_image`, `hardware`, `license`。`private` 已废弃，OpenAPI 优先使用 `visibility`。
 
-### 环境变量管理
+### 变量管理
+
+明文变量返回 key 和 value，仅用于非敏感配置：
+
+```bash
+curl "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/variables" \
+  -H "Authorization: Bearer $MODELSCOPE_API_KEY"
+curl -X POST "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/variables" \
+  -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"key": "GRADIO_TEMP_DIR", "value": "/tmp/gradio"}'
+curl -X PUT "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/variables" \
+  -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"key": "GRADIO_TEMP_DIR", "value": "/mnt/workspace/tmp"}'
+curl -X DELETE "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/variables" \
+  -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"key": "GRADIO_TEMP_DIR"}'
+```
+
+密文变量只返回 key，不返回 value，用于 API Key、Token、密码等敏感信息：
 
 ```bash
 # CLI
@@ -577,7 +615,11 @@ curl -X POST "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/secrets" 
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"key": "API_KEY", "value": "sk-xxx"}'
-# 删除：key 放 body，不是路径参数（DELETE .../secrets/{key} 会 404）
+curl -X PUT "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/secrets" \
+  -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"key": "API_KEY", "value": "new-value"}'
+# 删除：key 放 body，不是路径参数（DELETE .../{key} 会 404）
 curl -X DELETE "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/secrets" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
@@ -788,4 +830,3 @@ uv run scripts/ms_inspect_dataset.py --dataset_id "AI-ModelScope/alpaca-gpt4-dat
 | Studio | 速查：创建/部署/停止/日志 | **ms-studio-deploy**（完整部署流程、代码同步、诊断修复，API 优先） |
 | MCP | 速查：搜索/详情/部署/卸载/已部署 | `references/mcp-services.md`（IDE 配置模板、完整编排、字段差异） |
 | Skills | 速查：搜索/详情/安装/发布/更新 | `references/skills-center.md`（分类体系、打包规范、发布流程） |
-
