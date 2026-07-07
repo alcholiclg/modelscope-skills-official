@@ -18,9 +18,12 @@ description: >-
 pip install modelscope
 ```
 
-`modelscope` 包安装后同时获得 SDK（`modelscope.hub.api.HubApi`）和 CLI（`ms`）。CLI 底层由 `modelscope_hub`（v0.1.2）驱动，提供完整的 Hub / Studio / MCP / Skills 命令行操作。
+`pip install modelscope` 同时安装 SDK（`modelscope.hub.api.HubApi`）与两套命令行入口：
 
-> `ms` 和 `modelscope` 是同一命令的别名，本文统一使用 `ms`。
+- **`ms`（由 modelscope_hub v0.1.2 驱动）**：Hub / Studio / MCP 操作（`download`/`upload`/`create`/`deploy`/`mcp`/`secret`/…）。本文 Hub/Studio/MCP 命令统一用 `ms`。
+- **`modelscope`（legacy CLI）**：额外提供 `skills` 等命令（`modelscope skills add`）——`ms`（modelscope_hub）**没有** `skills` 子命令。
+
+> ⚠️ 两个包都注册了 `ms` 与 `modelscope` 入口，实际生效者取决于安装顺序。若某入口缺少所需子命令（典型：`ms` 无 `skills`），改用另一入口，或用 SDK / `curl install.sh`（见 §九 与 `references/skills-center.md`）。
 
 ## 认证配置
 
@@ -89,7 +92,7 @@ export MODELSCOPE_API_KEY="your_token"
 ├─── Skills：技能中心 ────────────────────────────
 │   ├── 搜索技能 → GET /skills?search=...
 │   ├── 查看详情 → GET /skills/{id}
-│   ├── 安装技能 → CLI: ms skills add @author/skill-name
+│   ├── 安装技能 → modelscope skills add @author/skill-name（legacy CLI；ms 无 skills）
 │   ├── 发布技能 → POST /files/upload + POST /skills
 │   ├── 更新技能 → PATCH /skills/{owner}/{skill_name}/settings
 │   └── 分类体系 / 打包规范 / 完整发布 → 详见 references/skills-center.md
@@ -208,23 +211,23 @@ curl "https://modelscope.cn/openapi/v1/users/me" \
 ### 创建仓库
 
 ```bash
-# CLI
-ms create owner/repo-name
-ms create owner/repo-name --visibility private
-ms create owner/my-lora --aigc --aigc_type LoRA --base_model_id Qwen/Qwen2.5-7B-Instruct
+# CLI（--repo-type 必填）
+ms create owner/repo-name --repo-type model
+ms create owner/repo-name --repo-type model --visibility private
+ms create owner/dataset-name --repo-type dataset
 ```
 
 ```python
-# SDK
+# SDK：通用创建 —— 注意 create_repo 的 visibility 用字符串 "public"/"private"
 api.create_repo(
     repo_id="owner/repo-name",
-    repo_type="model",         # "model" 或 "dataset"
-    visibility=5,              # 1=私有, 5=公开
+    repo_type="model",            # "model" 或 "dataset"
+    visibility="public",          # "public" 或 "private"（字符串，非整数）
     license="Apache License 2.0",
     exist_ok=True
 )
 
-# 模型专用
+# 模型专用 —— create_model/create_dataset 的 visibility 用整数 1=私有, 5=公开
 api.create_model(model_id="owner/model-name", visibility=5)
 
 # 数据集专用
@@ -233,6 +236,8 @@ api.create_dataset(
     namespace="owner",
     visibility=5
 )
+
+# AIGC/LoRA 模型：通过 SDK 的 aigc_model 参数（create_repo/create_model），无对应 CLI flag
 ```
 
 ### 检查仓库是否存在
@@ -244,15 +249,13 @@ exists = api.repo_exists(repo_id="owner/repo", repo_type="model")
 ### 设置可见性
 
 ```python
-api.set_repo_visibility(repo_id="owner/repo", repo_type="model", visibility=1)
+# visibility 用字符串 "public" / "private"（非整数）
+api.set_repo_visibility(repo_id="owner/repo", repo_type="model", visibility="private")
 ```
 
 ### 删除仓库
 
-```python
-# ⚠️ 危险操作：删除不可逆，必须获得用户明确确认
-api.delete_repo(repo_id="owner/repo", repo_type="model")
-```
+> ⚠️ **仓库删除已被平台限制为仅网页控制台**：`api.delete_repo(...)` 在 token 鉴权下返回 401（"Deletion is restricted to web console"），无法编程删除。请到 https://modelscope.cn 网页端操作。
 
 ## 四、文件操作
 
@@ -349,14 +352,7 @@ api.upload_folder(
 
 ### 删除文件
 
-```python
-api.delete_files(
-    repo_id="owner/repo",
-    repo_type="model",
-    delete_patterns=["*.tmp", "old_model/*"],
-    revision="master"
-)
-```
+> ⚠️ **文件删除同样被限制为仅网页控制台**：`api.delete_files(...)` 在 token 鉴权下不生效（旧 SDK 静默返回 `failed_files`，文件仍在；新 `modelscope_hub` 报 401 "Deletion is restricted to web console"）。如需删除文件，请到 https://modelscope.cn 网页控制台，或克隆仓库（git）、删除文件后提交推送。
 
 ### 多文件原子提交
 
@@ -381,7 +377,7 @@ api.create_commit(
 2. **数据集加载**：将 `datasets.load_dataset("hf_id")` 替换为 `MsDataset.load("ms_id")` 或 `dataset_snapshot_download`
 3. **仓库搜索**：用 OpenAPI 或 SDK 搜索 ModelScope 上的等效资源
 
-> 完整适配工作流（资产映射、许可检查、执行验证）参见：`ms skills add VoyagerX/modelscope-notebook-develop`
+> 完整适配工作流（资产映射、许可检查、执行验证）参见：`modelscope skills add VoyagerX/modelscope-notebook-develop`
 
 ### 防错对比
 
@@ -450,7 +446,8 @@ details = api.get_model_branches_and_tags_details(model_id="owner/repo")
 ### 验证 Revision
 
 ```python
-valid = api.get_valid_revision(repo_id="owner/repo", revision="v1.0")
+# 首参为 model_id（不是 repo_id）
+valid = api.get_valid_revision(model_id="owner/repo", revision="v1.0")
 ```
 
 ### 创建标签
@@ -730,22 +727,26 @@ curl "https://modelscope.cn/openapi/v1/skills/@ModelScope/modelscope-oauth-skill
 
 ### 安装技能
 
+> ⚠️ `skills add` 是 **legacy `modelscope` CLI** 的命令，`ms`（modelscope_hub）**没有** `skills`。若 `modelscope`/`ms` 入口被 modelscope_hub 覆盖而报「no skills command」，改用下方 `curl install.sh` 或 SDK `download_skill`（两者最可靠）。
+
 ```bash
-# CLI 安装
-ms skills add @author/skill-name
+# 方式一：modelscope（legacy）CLI
+modelscope skills add @author/skill-name
+modelscope skills add @author/skill-name --local_dir ./my-skills   # 指定目录
+modelscope skills add @author/skill-1 @author/skill-2              # 批量
 
-# 安装到指定目录
-ms skills add @author/skill-name --local_dir ./my-skills
-
-# 批量安装多个技能
-ms skills add @author/skill-1 @author/skill-2
-
-# Shell 脚本安装
+# 方式二：Shell 脚本（最可靠，无入口冲突）
 curl -fsSL https://modelscope.cn/skills/install.sh | bash -s -- @author/skill-name
-
-# 指定 Agent
 curl -fsSL https://modelscope.cn/skills/install.sh | bash -s -- @author/skill-name --agent cursor
 ```
+
+```python
+# 方式三：SDK（实测可靠）
+from modelscope.hub.mcp_api import MCPApi
+MCPApi().download_skill(skill_id="@author/skill-name", local_dir="./my-skills")
+```
+
+`modelscope skills add` 参数：
 
 | 参数 | 说明 |
 |------|------|
@@ -757,17 +758,17 @@ curl -fsSL https://modelscope.cn/skills/install.sh | bash -s -- @author/skill-na
 ### 发布技能（速查）
 
 ```bash
-# Step 1: 上传 zip 包
+# Step 1: 上传 zip 包（zip 根目录须仅含 1 个 SKILL.md）
 curl -X POST "https://modelscope.cn/openapi/v1/files/upload" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -F "file=@my-skill.zip" -F "type=skill"
-# → 获取 file_id
+# → 响应 {"data": {"id": "<uuid>"}}；取 data.id 作为下一步的 skill_file（注意键名是 id，不是 file_id）
 
-# Step 2: 创建技能
+# Step 2: 创建技能（skill_file 传上一步的 data.id）
 curl -X POST "https://modelscope.cn/openapi/v1/skills" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"owner": "username", "skill_name": "my-skill", "display_name": "My Skill", "skill_file": "<file_id>", "category": "developer-tools"}'
+  -d '{"owner": "username", "skill_name": "my-skill", "display_name": "My Skill", "skill_file": "<data.id>", "category": "developer-tools"}'
 ```
 
 ### 更新技能设置
@@ -798,6 +799,7 @@ ms clear-cache                             # 清理缓存
 | Hub | 分页上限 | `page_number × page_size ≤ 3000`；`/models` 单页 `page_size ≤ 50` |
 | Hub | 默认分支 master | 非 main |
 | Hub | 标签不可删除 | 只能创建 |
+| Hub | 仓库/文件删除仅网页控制台 | `delete_repo`/`delete_files` 在 token 下 401，编程不可删 |
 | Studio | Docker 需实名 | 阿里云账号绑定 |
 | Studio | 端口固定 7860 | 不可用 8080 |
 | Studio | 无编程删除 | OpenAPI `DELETE /studios/{id}` 返回 404；SDK/CLI `delete_repo` 废弃且不支持 studio。删除需网页控制台，编程侧只能 `stop` |

@@ -63,10 +63,11 @@ curl "https://modelscope.cn/openapi/v1/skills?search=代码审查&filter.categor
 curl -X POST "https://modelscope.cn/openapi/v1/files/upload" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -F "file=@my-skill.zip" -F "type=skill"
-# → 返回 file_id
+# → 响应 {"data": {"id": "<uuid>"}}；取 data.id 作为 skill_file（键名是 id，不是 file_id）
 ```
 
 > zip 包根目录必须且仅可包含 1 个 `SKILL.md` 文件。
+> 经 CLI 发布（`ms create --repo-type skill --skill-file <zip>`）时，SKILL.md frontmatter 须含 `name`/`version`/`description`，zip ≤ 5 MB。
 
 ### Step 2: 创建技能
 
@@ -78,7 +79,7 @@ curl -X POST "https://modelscope.cn/openapi/v1/skills" \
     "skill_name": "my-awesome-skill",
     "display_name": "My Awesome Skill",
     "description": "技能描述",
-    "skill_file": "<file_id from step 1>",
+    "skill_file": "<data.id from step 1>",
     "category": "developer-tools",
     "license": "MIT License",
     "tags": ["api-design", "automation"],
@@ -100,11 +101,15 @@ curl -X PATCH "https://modelscope.cn/openapi/v1/skills/{owner}/{skill_name}/sett
 
 ## 安装技能
 
+> ⚠️ `skills add` 属 **legacy `modelscope` CLI**；`ms`（modelscope_hub）无 `skills` 子命令。两包都注册 `ms`/`modelscope` 入口，生效者取决于安装顺序——若报「no skills command」，用下方 curl 或 SDK（最可靠）。
+
 ```bash
-ms skills add @author/skill-name                       # 默认装到 ~/.agents/skills/
-ms skills add @author/skill-name --local_dir ./skills  # 指定目录
-ms skills add @author/skill-1 @author/skill-2          # 批量
+modelscope skills add @author/skill-name                       # 默认装到 ~/.agents/skills/
+modelscope skills add @author/skill-name --local_dir ./skills  # 指定目录
+modelscope skills add @author/skill-1 @author/skill-2          # 批量
 ```
+
+`modelscope skills add` 参数：
 
 | 参数 | 说明 |
 |------|------|
@@ -113,15 +118,15 @@ ms skills add @author/skill-1 @author/skill-2          # 批量
 | `--token TOKEN` | Access Token（私有技能需要） |
 | `--max-workers N` | 并发下载数（默认 8） |
 
-> CLI 当前仅 `add` 子命令，尚无 `list`/`update`/`remove`。
+> legacy `modelscope` CLI 的 `skills` 仅 `add` 子命令，无 `list`/`update`/`remove`。
 
-其他安装方式（来自详情 `install_command`）：
+最可靠的安装方式（不受入口冲突影响，来自详情 `install_command`）：
 
 | 方式 | 命令 | 适用 |
 |------|------|------|
+| curl | `curl -fsSL https://modelscope.cn/skills/install.sh \| bash -s -- <id>` | 通用 Linux/Mac |
+| SDK | `MCPApi().download_skill(skill_id="@author/name", local_dir="./skills")`（实测可靠） | Python |
 | npx | `npx skills add <url>` | Node.js 环境 |
-| curl | `curl -fsSL .../install.sh \| bash -s -- <id>` | 通用 Linux/Mac |
-| SDK | `MCPApi().download_skill(skill_id="@author/name", local_dir="./skills")` | Python |
 
 ## Skill 目录结构
 

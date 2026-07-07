@@ -22,7 +22,9 @@ This repository follows the [Agent Skills](https://agentskills.io/home) standard
 
 ```bash
 pip install modelscope
-ms skills add @ModelScope/ms-hub
+modelscope skills add @ModelScope/ms-hub
+# If the modelscope/ms entrypoint has no `skills` command (shadowed by modelscope_hub), use the more reliable:
+# curl -fsSL https://modelscope.cn/skills/install.sh | bash -s -- @ModelScope/ms-hub
 ```
 
 Skills install to `~/.agents/skills/` by default, where major agent tools auto-discover them.

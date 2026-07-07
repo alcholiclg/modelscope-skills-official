@@ -22,7 +22,9 @@ ModelScope Skills 为 AI Agent 提供 [ModelScope 魔搭社区](https://modelsco
 
 ```bash
 pip install modelscope
-ms skills add @ModelScope/ms-hub
+modelscope skills add @ModelScope/ms-hub
+# 若 modelscope/ms 入口无 skills 命令（被 modelscope_hub 覆盖），改用更可靠的：
+# curl -fsSL https://modelscope.cn/skills/install.sh | bash -s -- @ModelScope/ms-hub
 ```
 
 技能默认安装到 `~/.agents/skills/`，主流 Agent 工具会自动发现。
