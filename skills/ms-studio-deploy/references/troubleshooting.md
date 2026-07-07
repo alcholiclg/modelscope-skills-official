@@ -1,63 +1,63 @@
-# 创空间部署问题排查
+# Studio Deployment Troubleshooting
 
-## 通用错误
+## Common errors
 
-| 错误特征 | 原因 | 修复方案 |
+| Error signature | Cause | Fix |
 |----------|------|----------|
-| `ModuleNotFoundError: No module named 'xxx'` | 缺少依赖 | 添加到 `requirements.txt` |
-| `SyntaxError` | Python 语法错误 | 检查并修复代码 |
-| `MemoryError` / `OOMKilled` | 内存不足 | 优化内存使用或升级硬件；如需切换到付费资源，先明确告知费用风险并得到用户明确授权 |
-| `Permission denied` | 文件权限问题 | `chmod +x` 或检查目录权限 |
-| `FileNotFoundError` | 文件路径不对 | 检查文件是否已提交到 Git |
-| 变量为空/None | 未配置明文或密文变量 | 通过 OpenAPI 添加；敏感信息用密文变量 |
-| `ImportError: cannot import name` | 版本不兼容 | 在 requirements.txt 中指定版本 |
+| `ModuleNotFoundError: No module named 'xxx'` | Missing dependency | Add it to `requirements.txt` |
+| `SyntaxError` | Python syntax error | Review and fix the code |
+| `MemoryError` / `OOMKilled` | Out of memory | Optimize memory usage or upgrade hardware; if switching to a paid resource, first clearly state the cost risk and obtain explicit authorization from the user |
+| `Permission denied` | File permission issue | `chmod +x` or check directory permissions |
+| `FileNotFoundError` | Wrong file path | Check whether the file has been committed to Git |
+| Variable is empty/None | Plaintext variable or secret not configured | Add it via OpenAPI; use secrets for sensitive information |
+| `ImportError: cannot import name` | Version incompatibility | Pin the version in requirements.txt |
 
-## Docker 特有错误
+## Docker-specific errors
 
-| 错误特征 | 原因 | 修复方案 |
+| Error signature | Cause | Fix |
 |----------|------|----------|
-| `Address already in use` | 端口冲突 | 确保监听 `0.0.0.0:7860` |
-| `COPY failed: file not found` | 源文件不存在 | 检查 Dockerfile 中的 COPY 路径 |
-| `RUN` 步骤失败 | 依赖安装出错 | 检查 pip/npm 命令和网络 |
-| 镜像拉取失败 | FROM 基础镜像不可访问 | 使用国内镜像源 |
-| 构建超时 | 依赖太多或镜像太大 | 精简依赖，使用多阶段构建 |
-| `exec format error` | 架构不匹配 | 确保使用 amd64 基础镜像 |
+| `Address already in use` | Port conflict | Make sure you listen on `0.0.0.0:7860` |
+| `COPY failed: file not found` | Source file does not exist | Check the COPY path in the Dockerfile |
+| `RUN` step fails | Dependency installation error | Check the pip/npm commands and the network |
+| Image pull failure | The `FROM` base image is inaccessible | Use a domestic mirror source |
+| Build timeout | Too many dependencies or the image is too large | Trim dependencies and use a multi-stage build |
+| `exec format error` | Architecture mismatch | Make sure you use an amd64 base image |
 
-## 部署状态
+## Deployment status
 
-| 状态 | 含义 | 处理 |
+| Status | Meaning | Action |
 |------|------|------|
-| `Building` | Docker 正在构建 | 等待，查看 build 日志 |
-| `Running` | 运行中 | 正常 |
-| `Stopped` | 已停止 | 调用 deployStudio 重启 |
-| `Failed` | 启动失败 | 查看 run 日志排查 |
-| `Sleeping` | 长时间无访问休眠 | 访问 URL 自动唤醒 |
+| `Building` | Docker is building | Wait, and check the build logs |
+| `Running` | Running | Normal |
+| `Stopped` | Stopped | Call deployStudio to restart |
+| `Failed` | Startup failed | Check the run logs to troubleshoot |
+| `Sleeping` | Sleeping after a long period without access | Visit the URL to wake it automatically |
 
-## Git 推送问题
+## Git push issues
 
-| 错误 | 修复 |
+| Error | Fix |
 |------|------|
-| `Authentication failed` | 检查 Token 是否正确和过期 |
-| `remote rejected` | 检查仓库是否存在、权限是否足够 |
+| `Authentication failed` | Check whether the Token is correct and not expired |
+| `remote rejected` | Check whether the repository exists and whether permissions are sufficient |
 | `LFS objects missing` | `git lfs install && git lfs push --all` |
-| 合并冲突 | `git checkout --ours . && git add . && git commit` |
+| Merge conflict | `git checkout --ours . && git add . && git commit` |
 
-## 排查流程
+## Troubleshooting flow
 
 ```
-部署失败
+Deployment failed
 │
-├── 查看日志类型
-│   ├── Docker → 先查 build 日志，再查 run 日志
-│   └── 其他 → 直接查 run 日志
+├── Check the log type
+│   ├── Docker → check the build logs first, then the run logs
+│   └── Other → check the run logs directly
 │
-├── 根据日志定位问题
-│   ├── 依赖缺失 → 更新 requirements.txt
-│   ├── 端口错误 → 确保 7860
-│   ├── 代码错误 → 修复代码
-│   └── 变量 → 检查明文/密文变量配置
+├── Locate the problem from the logs
+│   ├── Missing dependency → update requirements.txt
+│   ├── Wrong port → ensure 7860
+│   ├── Code error → fix the code
+│   └── Variable → check plaintext variable/secret configuration
 │
-└── 修复后重新部署
+└── After fixing, redeploy
     git add . && git commit -m "fix" && git push modelscope master
-    然后调用 deployStudio
+    then call deployStudio
 ```

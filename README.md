@@ -1,35 +1,37 @@
 # ModelScope Skills
 
-ModelScope Skills 为 AI Agent 提供 [ModelScope 魔搭社区](https://modelscope.cn) 的操作能力——模型/数据集管理、创空间部署、MCP 服务配置、技能中心使用。兼容 Cursor、Claude Code、Codex、Gemini CLI 等主流 Coding Agent 工具。
+**English** | [中文](README_ZH.md)
 
-本仓库遵循 [Agent Skills](https://agentskills.io/home) 标准格式。
+ModelScope Skills equip AI agents with the ability to operate on ModelScope — model/dataset management, Studio deployment, MCP service configuration, and Skills Center operations. It serves both ModelScope sites: the domestic site [modelscope.cn](https://modelscope.cn) and the international site [modelscope.ai](https://www.modelscope.ai). Compatible with Cursor, Claude Code, Codex, Gemini CLI, and other major coding agent tools.
+
+This repository follows the [Agent Skills](https://agentskills.io/home) standard format.
 
 > [!NOTE]
-> 优先安装 [`ms-hub`](skills/ms-hub/SKILL.md) 技能——它是整个 ModelScope 平台的统一操作入口，让 Agent 可以通过 `ms` CLI、Python SDK 和 OpenAPI 完成绝大多数平台操作。
+> Start by installing [`ms-hub`](skills/ms-hub/SKILL.md) — the unified entry point for the entire ModelScope platform, enabling your agent to perform most platform operations via the `ms` CLI, Python SDK, and OpenAPI.
 
-## 可用技能
+## Available Skills
 
-| 名称 | 说明 | 文档 |
-|------|------|------|
-| `ms-hub` | 统一操作入口——模型/数据集搜索下载上传、仓库管理、创空间速查、MCP 服务、技能中心 | [SKILL.md](skills/ms-hub/SKILL.md) |
-| `ms-studio-deploy` | 将本地项目部署到创空间（Gradio / Streamlit / Docker / 静态站），API 优先的完整部署流程和自动诊断 | [SKILL.md](skills/ms-studio-deploy/SKILL.md) |
+| Name | Description | Docs |
+|------|-------------|------|
+| `ms-hub` | Unified operations hub — model/dataset search/download/upload, repo management, Studio quick-ops, MCP services, Skills Center | [SKILL.md](skills/ms-hub/SKILL.md) |
+| `ms-studio-deploy` | Deploy local projects to Studios (Gradio / Streamlit / Docker / static), API-first workflow with auto-diagnosis | [SKILL.md](skills/ms-studio-deploy/SKILL.md) |
 
-> MCP 服务管理与技能中心发布已并入 `ms-hub`：常用操作见 SKILL.md 第八/九节，展开细节见 `ms-hub/references/mcp-services.md` 与 `skills-center.md`。
+> MCP service management and Skills Center publishing are now folded into `ms-hub`: common ops live in SKILL.md §8/§9, with depth in `ms-hub/references/mcp-services.md` and `skills-center.md`.
 
-## 安装
+## Installation
 
-### 通过 ModelScope CLI（通用）
+### ModelScope CLI (universal)
 
 ```bash
 pip install modelscope
 modelscope skills add @ModelScope/ms-hub
-# 若 modelscope/ms 入口无 skills 命令（被 modelscope_hub 覆盖），改用更可靠的：
+# If the modelscope/ms entrypoint has no `skills` command (shadowed by modelscope_hub), use the more reliable:
 # curl -fsSL https://modelscope.cn/skills/install.sh | bash -s -- @ModelScope/ms-hub
 ```
 
-技能默认安装到 `~/.agents/skills/`，主流 Agent 工具会自动发现。
+Skills install to `~/.agents/skills/` by default, where major agent tools auto-discover them.
 
-另外可以选择从源码安装：
+Alternatively, install from source:
 
 ```bash
 git clone https://github.com/modelscope/modelscope-skills.git
@@ -38,7 +40,7 @@ cp -r modelscope-skills/skills/ms-hub ~/.agents/skills/
 
 ### Cursor
 
-将 `skills/` 下的技能文件夹复制到项目的 `.cursor/skills/` 目录，Cursor 会自动发现其中的 SKILL.md。
+Copy the skill folders from `skills/` into your project's `.cursor/skills/` directory; Cursor auto-discovers the SKILL.md files there.
 
 ### Claude Code
 
@@ -49,7 +51,7 @@ cp -r modelscope-skills/skills/ms-hub ~/.agents/skills/
 
 ### Codex
 
-将文件夹复制或软链接到 `$HOME/.agents/skills`（或 `$REPO_ROOT/.agents/skills`）。
+Copy or symlink skill folders into `$HOME/.agents/skills` (or `$REPO_ROOT/.agents/skills`).
 
 ### Gemini CLI
 
@@ -57,59 +59,72 @@ cp -r modelscope-skills/skills/ms-hub ~/.agents/skills/
 gemini extensions install https://github.com/modelscope/modelscope-skills.git --consent
 ```
 
-## 使用
+## Usage
 
-装好之后直接对 Agent 说你想做什么：
+Once installed, just tell your agent what you need:
 
-- "下载 Qwen2.5-7B-Instruct"
-- "把这个项目部署到魔搭创空间"
-- "找一个地图 MCP 服务配置到 Cursor"
-- "发布我的 Skill 到技能中心"
+- "Download Qwen2.5-7B-Instruct"
+- "Deploy this project to ModelScope Studios"
+- "Find a map MCP service and configure it in Cursor"
+- "Publish my Skill to the Skills Center"
 
-Agent 会自动加载对应的 Skill 并执行。
+The agent automatically loads the relevant Skill and executes.
 
-## 前置要求
+## Prerequisites
 
 ```bash
 pip install modelscope
-export MODELSCOPE_API_KEY="your_token"  # https://modelscope.cn/my/myaccesstoken
+export MODELSCOPE_API_KEY="your_token"   # from the target site's /my/myaccesstoken
+# Optional — pick a site (default: domestic modelscope.cn):
+export MODELSCOPE_ENDPOINT="https://www.modelscope.ai"   # international; omit for domestic
 ```
 
-## 技能关系
+## Sites (domestic / international)
+
+ModelScope runs two sites with separate accounts, tokens, and catalogs:
+
+| Site | Endpoint (`MODELSCOPE_ENDPOINT`) | Token page |
+|------|----------------------------------|-----------|
+| Domestic (default) | `https://modelscope.cn` | https://modelscope.cn/my/myaccesstoken |
+| International | `https://www.modelscope.ai` | https://www.modelscope.ai/my/myaccesstoken |
+
+`MODELSCOPE_ENDPOINT` reroutes the OpenAPI base, CLI, SDK, and git URLs in one shot. Access tokens are **site-scoped** — use the token issued by the site you target. The skills detect the intended site from `MODELSCOPE_ENDPOINT` / your token / explicit intent and default to the domestic site when unspecified. See [`ms-hub`](skills/ms-hub/SKILL.md) → "Site selection & endpoint routing".
+
+## Skill Architecture
 
 ```
-ms-hub（统一入口 / 速查）
- ├── Hub 模型/数据集/仓库操作
- ├── MCP 服务搜索·部署·配置  → references/mcp-services.md
- ├── 技能中心搜索·安装·发布   → references/skills-center.md
- └── ms-studio-deploy（创空间完整部署流程，API 优先）
+ms-hub (unified entry / quick reference)
+ ├── Hub model/dataset/repo operations
+ ├── MCP service search·deploy·configure  → references/mcp-services.md
+ ├── Skills Center search·install·publish  → references/skills-center.md
+ └── ms-studio-deploy (full Studio deployment workflow, API-first)
 ```
 
-`ms-hub` 覆盖常用操作的速查命令；MCP 与技能中心的展开细节下沉到 references，创空间的多步长流程独立为 `ms-studio-deploy`。
+`ms-hub` covers common operations as quick-reference commands; MCP and Skills Center depth lives in references, while the multi-step Studio deployment is split out into `ms-studio-deploy`.
 
-## 贡献
+## Contributing
 
-1. `skills/` 下新建文件夹
-2. 编写 `SKILL.md`：
+1. Create a new folder under `skills/`
+2. Write `SKILL.md`:
    ```markdown
    ---
    name: my-skill
-   description: 技能用途和触发条件
+   description: What it does and when to activate
    ---
 
-   # 标题
-   指引 + 示例 + 约束
+   # Title
+   Guidance + examples + guardrails
    ```
-3. 按需添加脚本、模板、参考文档
-4. 提交 PR
+3. Add scripts, templates, reference docs as needed
+4. Submit a PR
 
-## 许可证
+## License
 
 Apache License 2.0
 
-## 相关链接
+## Links
 
-- [ModelScope 官方文档](https://modelscope.cn/docs/)
-- [ModelScope 技能中心](https://modelscope.cn/skills)
-- [ModelScope MCP 广场](https://modelscope.cn/mcp)
-- [Agent Skills 标准](https://agentskills.io/home)
+- [ModelScope Documentation](https://modelscope.cn/docs/)
+- [ModelScope Skills Center](https://modelscope.cn/skills)
+- [ModelScope MCP Plaza](https://modelscope.cn/mcp)
+- [Agent Skills Standard](https://agentskills.io/home)

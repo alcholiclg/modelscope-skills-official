@@ -1,9 +1,9 @@
-# Docker 创空间模板
+# Docker Studio Templates
 
-前置要求：需在魔搭平台完成阿里云账号绑定并通过实名认证。
-详见：https://modelscope.cn/docs/studios/docker
+Prerequisite: You must complete Alibaba Cloud account binding on the ModelScope platform and pass real-name verification.
+See: https://modelscope.cn/docs/studios/docker
 
-## Python 应用
+## Python app
 
 ```dockerfile
 FROM python:3.10
@@ -14,7 +14,7 @@ EXPOSE 7860
 ENTRYPOINT ["python", "-u", "app.py"]
 ```
 
-## Node.js 应用
+## Node.js app
 
 ```dockerfile
 FROM node:18
@@ -26,7 +26,7 @@ EXPOSE 7860
 CMD ["npm", "start"]
 ```
 
-## FastAPI 应用
+## FastAPI app
 
 ```dockerfile
 FROM python:3.10
@@ -37,7 +37,7 @@ EXPOSE 7860
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]
 ```
 
-## Golang 应用
+## Golang app
 
 ```dockerfile
 FROM golang:1.21 AS builder
@@ -54,10 +54,10 @@ EXPOSE 7860
 CMD ["./server"]
 ```
 
-## 关键要求
+## Key requirements
 
-1. **端口必须 7860** — 监听 `0.0.0.0:7860`，禁止使用 `8080`（平台占用）
-2. **HTTP Header 限制** — 禁止使用 `Authorization`、`X-modelscope-*`、`X-studio-*`
-3. **持久化** — 默认每次重启数据丢失，持久化目录 `/mnt/workspace`
-4. **大文件** — 超过 100MB 用 Git LFS
-5. **首次构建** — 约 3-5 分钟
+1. **Port must be 7860** — listen on `0.0.0.0:7860`; do not use `8080` (occupied by the platform)
+2. **HTTP Header restrictions** — do not use `Authorization`, `X-modelscope-*`, or `X-studio-*`
+3. **Persistence** — by default data is lost on every restart; the persistent directory is `/mnt/workspace`
+4. **Large files** — use Git LFS for files over 100MB
+5. **First build** — approximately 3-5 minutes

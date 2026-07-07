@@ -2,9 +2,9 @@
 # dependencies = ["modelscope>=1.34.0"]
 # ///
 """
-从 ModelScope 仓库下载并读取文件内容。
+Download and read file content from a ModelScope repository.
 
-用法:
+Usage:
     uv run scripts/ms_read_file.py --repo_id "Qwen/Qwen2.5-7B-Instruct" --file_path "config.json"
     uv run scripts/ms_read_file.py --repo_id "modelscope/alpaca" --file_path "data/train.jsonl" --repo_type dataset
     uv run scripts/ms_read_file.py --repo_id "Qwen/Qwen2.5-7B-Instruct" --file_path "config.json" --max_lines 100
@@ -67,15 +67,15 @@ def read_file(repo_id: str, file_path: str, repo_type: str = 'model',
                 revision=revision,
             )
     except Exception as e:
-        return f'错误：无法下载文件 {file_path}\n原因: {e}'
+        return f'Error: unable to download file {file_path}\nReason: {e}'
 
     file_size = os.path.getsize(local_path)
-    header = f'文件: {repo_id}/{file_path} (revision: {revision})\n'
-    header += f'大小: {format_size(file_size)}\n'
+    header = f'File: {repo_id}/{file_path} (revision: {revision})\n'
+    header += f'Size: {format_size(file_size)}\n'
 
     if not is_text_file(local_path):
-        header += f'类型: 二进制文件\n'
-        header += '（二进制文件不显示内容）'
+        header += f'Type: binary file\n'
+        header += '(binary file content not shown)'
         return header
 
     header += '---\n'
@@ -84,24 +84,24 @@ def read_file(repo_id: str, file_path: str, repo_type: str = 'model',
             lines = []
             for i, line in enumerate(f):
                 if i >= max_lines:
-                    lines.append(f'\n... (已截断，共显示 {max_lines} 行，文件总大小 {format_size(file_size)})')
+                    lines.append(f'\n... (truncated, showing {max_lines} lines, total file size {format_size(file_size)})')
                     break
                 lines.append(line.rstrip('\n'))
             content = '\n'.join(lines)
     except Exception as e:
-        content = f'读取错误: {e}'
+        content = f'Read error: {e}'
 
     return header + content
 
 
 def main():
-    parser = argparse.ArgumentParser(description='从 ModelScope 仓库读取文件内容')
-    parser.add_argument('--repo_id', required=True, help='仓库 ID (如 Qwen/Qwen2.5-7B-Instruct)')
-    parser.add_argument('--file_path', required=True, help='文件路径 (如 config.json)')
+    parser = argparse.ArgumentParser(description='Read file content from a ModelScope repository')
+    parser.add_argument('--repo_id', required=True, help='Repository ID (e.g. Qwen/Qwen2.5-7B-Instruct)')
+    parser.add_argument('--file_path', required=True, help='File path (e.g. config.json)')
     parser.add_argument('--repo_type', default='model', choices=['model', 'dataset'],
-                        help='仓库类型 (默认: model)')
-    parser.add_argument('--revision', default='master', help='分支/标签/SHA (默认: master)')
-    parser.add_argument('--max_lines', type=int, default=500, help='最大读取行数 (默认: 500)')
+                        help='Repository type (default: model)')
+    parser.add_argument('--revision', default='master', help='Branch/tag/SHA (default: master)')
+    parser.add_argument('--max_lines', type=int, default=500, help='Maximum number of lines to read (default: 500)')
 
     args = parser.parse_args()
     result = read_file(

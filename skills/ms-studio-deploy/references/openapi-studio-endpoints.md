@@ -1,13 +1,13 @@
-# Studios OpenAPI 端点参考
+# Studios OpenAPI Endpoint Reference
 
-Base URL: `https://modelscope.cn/openapi/v1`
+Base URL: `$MODELSCOPE_ENDPOINT/openapi/v1`
 
-认证: `Authorization: Bearer $MODELSCOPE_API_KEY`
+Authentication: `Authorization: Bearer $MODELSCOPE_API_KEY`
 
-## 创建创空间
+## Create a Studio
 
 ```bash
-curl -X POST "https://modelscope.cn/openapi/v1/studios" \
+curl -X POST "$MODELSCOPE_ENDPOINT/openapi/v1/studios" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -15,7 +15,7 @@ curl -X POST "https://modelscope.cn/openapi/v1/studios" \
     "repo_name": "my-app",
     "sdk_type": "gradio",
     "display_name": "My Application",
-    "description": "应用描述",
+    "description": "Application description",
     "visibility": "private",
     "hardware": "platform/2v-cpu-16g-mem",
     "base_image": "ubuntu22.04-py311-torch2.9.1-modelscope1.35.0",
@@ -23,74 +23,74 @@ curl -X POST "https://modelscope.cn/openapi/v1/studios" \
   }'
 ```
 
-### sdk_type 取值
+### sdk_type values
 
-| 值 | 说明 | 入口文件 |
+| Value | Description | Entry file |
 |-----|------|----------|
-| `gradio` | Gradio 应用 | `app.py` |
-| `streamlit` | Streamlit 应用 | `app.py` |
-| `docker` | Docker 容器 | `Dockerfile` |
-| `static` | 静态网站 | `index.html` |
+| `gradio` | Gradio app | `app.py` |
+| `streamlit` | Streamlit app | `app.py` |
+| `docker` | Docker container | `Dockerfile` |
+| `static` | Static website | `index.html` |
 
-## 查询可用配置
+## Query available configuration
 
-这些接口用于在创建或更新 Studio 前动态选择配置，避免写死过期值。
+These endpoints are used to dynamically select configuration before creating or updating a Studio, avoiding hardcoding stale values.
 
 ```bash
-# 硬件配置；sdk_type 可选，已有空间时可追加 studio=owner/repo_name
-curl "https://modelscope.cn/openapi/v1/studios/hardware?sdk_type=gradio" \
+# Hardware configuration; sdk_type is optional, and for an existing Studio you can append studio=owner/repo_name
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/studios/hardware?sdk_type=gradio" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 
-# SDK 版本；目前仅 sdk_type=gradio 返回 Gradio 版本列表
-curl "https://modelscope.cn/openapi/v1/studios/sdk-versions?sdk_type=gradio" \
+# SDK versions; currently only sdk_type=gradio returns a Gradio version list
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/studios/sdk-versions?sdk_type=gradio" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 
-# 基础镜像
-curl "https://modelscope.cn/openapi/v1/studios/base-images" \
+# Base images
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/studios/base-images" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 ```
 
-使用返回值时：`hardware` 取硬件项的 `name`（付费资源格式为 `paid/<InstanceType>`），`sdk_version` 取 SDK 版本项的 `version`，`base_image` 取基础镜像项的 `name`。
+When using the returned values: `hardware` takes the hardware item's `name` (the paid-resource format is `paid/<InstanceType>`), `sdk_version` takes the SDK version item's `version`, and `base_image` takes the base image item's `name`.
 
-**付费资源授权要求：** 如果 `hardware` 使用 `paid/<InstanceType>` 或硬件返回项 `resource_type=paid`，会对用户 ModelScope 绑定的阿里云账号产生费用。必须先向用户说明费用风险并得到明确授权，才能创建、更新设置或重新部署。
+**Paid-resource authorization requirement:** If `hardware` uses `paid/<InstanceType>` or the returned hardware item has `resource_type=paid`, charges will be incurred against the Alibaba Cloud account bound to the user's ModelScope account. You must first explain the cost risk to the user and obtain explicit authorization before you can create, update settings, or redeploy.
 
-## 获取创空间详情
+## Get Studio details
 
 ```bash
-curl "https://modelscope.cn/openapi/v1/studios/{owner}/{repo_name}" \
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/studios/{owner}/{repo_name}" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 ```
 
-## 部署/重启创空间
+## Deploy/restart a Studio
 
 ```bash
-curl -X POST "https://modelscope.cn/openapi/v1/studios/{owner}/{repo_name}/deploy" \
+curl -X POST "$MODELSCOPE_ENDPOINT/openapi/v1/studios/{owner}/{repo_name}/deploy" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 ```
 
-## 停止创空间
+## Stop a Studio
 
 ```bash
-curl -X POST "https://modelscope.cn/openapi/v1/studios/{owner}/{repo_name}/stop" \
+curl -X POST "$MODELSCOPE_ENDPOINT/openapi/v1/studios/{owner}/{repo_name}/stop" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 ```
 
-## 获取运行日志
+## Get run logs
 
 ```bash
-# 运行日志
-curl "https://modelscope.cn/openapi/v1/studios/{owner}/{repo_name}/logs/run" \
+# Run logs
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/studios/{owner}/{repo_name}/logs/run" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 
-# 构建日志（Docker 类型）
-curl "https://modelscope.cn/openapi/v1/studios/{owner}/{repo_name}/logs/build" \
+# Build logs (Docker type)
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/studios/{owner}/{repo_name}/logs/build" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 ```
 
-## 更新设置
+## Update settings
 
 ```bash
-curl -X PATCH "https://modelscope.cn/openapi/v1/studios/{owner}/{repo_name}/settings" \
+curl -X PATCH "$MODELSCOPE_ENDPOINT/openapi/v1/studios/{owner}/{repo_name}/settings" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -102,63 +102,63 @@ curl -X PATCH "https://modelscope.cn/openapi/v1/studios/{owner}/{repo_name}/sett
   }'
 ```
 
-`sdk_type`、`sdk_version`、`base_image`、`hardware` 修改后需重新部署才能生效。`private` 已废弃，OpenAPI 优先使用 `visibility`：`public`、`protected`、`private`。
+Changes to `sdk_type`, `sdk_version`, `base_image`, and `hardware` require a redeploy to take effect. `private` is deprecated; OpenAPI prefers `visibility`: `public`, `protected`, `private`.
 
-## 明文变量（Variables）
+## Plaintext variables (Variables)
 
-明文变量返回 key 和 value，仅用于非敏感配置。敏感信息请使用密文变量。
+Plaintext variables return both key and value, and are only for non-sensitive configuration. Use secrets for sensitive information.
 
 ```bash
-# 列出
-curl "https://modelscope.cn/openapi/v1/studios/{owner}/{repo_name}/variables" \
+# List
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/studios/{owner}/{repo_name}/variables" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 
-# 添加
-curl -X POST "https://modelscope.cn/openapi/v1/studios/{owner}/{repo_name}/variables" \
+# Add
+curl -X POST "$MODELSCOPE_ENDPOINT/openapi/v1/studios/{owner}/{repo_name}/variables" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"key": "GRADIO_TEMP_DIR", "value": "/tmp/gradio"}'
 
-# 更新
-curl -X PUT "https://modelscope.cn/openapi/v1/studios/{owner}/{repo_name}/variables" \
+# Update
+curl -X PUT "$MODELSCOPE_ENDPOINT/openapi/v1/studios/{owner}/{repo_name}/variables" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"key": "GRADIO_TEMP_DIR", "value": "/mnt/workspace/tmp"}'
 
-# 删除（key 放在 body，不是路径参数）
-curl -X DELETE "https://modelscope.cn/openapi/v1/studios/{owner}/{repo_name}/variables" \
+# Delete (put key in the body, not as a path parameter)
+curl -X DELETE "$MODELSCOPE_ENDPOINT/openapi/v1/studios/{owner}/{repo_name}/variables" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"key": "GRADIO_TEMP_DIR"}'
 ```
 
-## 密文变量（Secrets）
+## Secrets (Secrets)
 
-密文变量列表只返回 key，不返回 value，用于 API Key、Token、密码等敏感信息。
+The secrets list returns only keys, not values, and is used for sensitive information such as API keys, tokens, and passwords.
 
 ```bash
-# 列出
-curl "https://modelscope.cn/openapi/v1/studios/{owner}/{repo_name}/secrets" \
+# List
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/studios/{owner}/{repo_name}/secrets" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 
-# 添加
-curl -X POST "https://modelscope.cn/openapi/v1/studios/{owner}/{repo_name}/secrets" \
+# Add
+curl -X POST "$MODELSCOPE_ENDPOINT/openapi/v1/studios/{owner}/{repo_name}/secrets" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"key": "API_KEY", "value": "sk-xxx"}'
 
-# 更新
-curl -X PUT "https://modelscope.cn/openapi/v1/studios/{owner}/{repo_name}/secrets" \
+# Update
+curl -X PUT "$MODELSCOPE_ENDPOINT/openapi/v1/studios/{owner}/{repo_name}/secrets" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"key": "API_KEY", "value": "new-value"}'
 
-# 删除（key 放在 body，不是路径参数）
-curl -X DELETE "https://modelscope.cn/openapi/v1/studios/{owner}/{repo_name}/secrets" \
+# Delete (put key in the body, not as a path parameter)
+curl -X DELETE "$MODELSCOPE_ENDPOINT/openapi/v1/studios/{owner}/{repo_name}/secrets" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"key": "API_KEY"}'
 ```
 
-> ⚠️ 删除明文/密文变量都用 `DELETE .../variables` 或 `DELETE .../secrets` + body `{"key": "..."}`。
-> 路径形式 `DELETE .../{key}` 会返回 404 且不生效。
+> ⚠️ Deleting either plaintext variables or secrets uses `DELETE .../variables` or `DELETE .../secrets` + body `{"key": "..."}`.
+> The path form `DELETE .../{key}` returns 404 and is a no-op.

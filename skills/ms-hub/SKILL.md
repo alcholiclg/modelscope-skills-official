@@ -1,265 +1,291 @@
 ---
 name: ms-hub
 description: >-
-  ModelScope 魔搭社区统一操作入口。覆盖模型/数据集搜索下载上传、仓库管理、创空间部署、
-  MCP 服务搜索部署配置、技能中心搜索安装发布。当用户提到 ModelScope、魔搭、或任何平台操作时使用此 skill。
-  复杂的创空间部署流程使用 ms-studio-deploy；MCP 与技能中心的展开细节见本 skill 的 references。
+  ModelScope unified operations entrypoint. Covers model/dataset search, download, and upload; repository management; Studio deployment;
+  MCP service search, deployment, and configuration; and Skills Center search, install, and publish. Use this skill whenever the user mentions ModelScope or any platform operation.
+  Use ms-studio-deploy for complex Studio deployment workflows; see this skill's references for the expanded MCP and Skills Center details.
 ---
 
-# ModelScope 统一操作入口
+# ModelScope Unified Operations Entrypoint
 
 > Verified with modelscope 1.37.1, Python 3.12 (2026-06-23)
 
-通过 OpenAPI、CLI 和 SDK 操作 ModelScope 魔搭社区全平台能力，覆盖 Hub（模型/数据集）、创空间（Studio）、MCP 服务、技能中心（Skills）。本 Skill 作为速查入口，复杂操作流程需使用专项 Skill。
+Operate the full range of ModelScope platform capabilities through OpenAPI, CLI, and SDK, covering Hub (models/datasets), Studio, MCP services, and the Skills Center (Skills). This Skill serves as a quick-reference entrypoint; complex operational workflows require the dedicated Skill.
 
-## 环境要求
+## Requirements
 
 ```bash
 pip install modelscope
 ```
 
-`pip install modelscope` 同时安装 SDK（`modelscope.hub.api.HubApi`）与两套命令行入口：
+`pip install modelscope` installs both the SDK (`modelscope.hub.api.HubApi`) and two sets of command-line entrypoints:
 
-- **`ms`（由 modelscope_hub v0.1.2 驱动）**：Hub / Studio / MCP 操作（`download`/`upload`/`create`/`deploy`/`mcp`/`secret`/…）。本文 Hub/Studio/MCP 命令统一用 `ms`。
-- **`modelscope`（legacy CLI）**：额外提供 `skills` 等命令（`modelscope skills add`）——`ms`（modelscope_hub）**没有** `skills` 子命令。
+- **`ms` (driven by modelscope_hub v0.1.2)**: Hub / Studio / MCP operations (`download`/`upload`/`create`/`deploy`/`mcp`/`secret`/…). This document uses `ms` uniformly for Hub/Studio/MCP commands.
+- **`modelscope` (legacy CLI)**: additionally provides commands such as `skills` (`modelscope skills add`) — `ms` (modelscope_hub) **does not have** a `skills` subcommand.
 
-> ⚠️ 两个包都注册了 `ms` 与 `modelscope` 入口，实际生效者取决于安装顺序。若某入口缺少所需子命令（典型：`ms` 无 `skills`），改用另一入口，或用 SDK / `curl install.sh`（见 §九 与 `references/skills-center.md`）。
+> ⚠️ Both packages register the `ms` and `modelscope` entrypoints; which one actually takes effect depends on install order. If an entrypoint lacks a required subcommand (typically: `ms` has no `skills`), switch to the other entrypoint, or use the SDK / `curl install.sh` (see §9 and `references/skills-center.md`).
 
-## 认证配置
+## Authentication
 
-所有操作依赖统一认证：
+All operations rely on unified authentication:
 
 ```bash
-# 环境变量
+# Environment variable
 export MODELSCOPE_API_KEY="your_token"
 
-# Token 获取地址
-# https://modelscope.cn/my/myaccesstoken
+# Token retrieval URL
+# $MODELSCOPE_ENDPOINT/my/myaccesstoken
 ```
 
-| 操作方式 | 认证方法 |
+| Operation method | Authentication method |
 |----------|----------|
 | OpenAPI | `Authorization: Bearer $MODELSCOPE_API_KEY` |
 | CLI | `ms login --token $MODELSCOPE_API_KEY` |
 | SDK | `api.login(access_token=os.environ['MODELSCOPE_API_KEY'])` |
 
-## 基础约定
+## Site selection & endpoint routing
 
-| 项目 | 值 |
-|------|-----|
-| **OpenAPI Base URL** | `https://modelscope.cn/openapi/v1` |
-| **成功响应** | `{"success": true, "data": {...}, "request_id": "..."}` |
-| **错误响应** | `{"success": false, "code": "ERROR_CODE", "message": "..."}` |
-| **HTTP 状态码** | `200` 成功 / `401` 未授权 / `404` 不存在 / `500` 服务器错误 |
-| **默认分支** | `master`（非 main） |
-| **分页限制** | `page_number × page_size ≤ 3000` |
+ModelScope runs two independent sites — the **domestic** site `https://modelscope.cn` (default) and the **international** site `https://www.modelscope.ai`. They have separate accounts, access tokens, and content catalogs. Every operation here targets whichever site `$MODELSCOPE_ENDPOINT` points to.
 
-## 快速决策指南
+### Pick the target site (intent analysis)
 
-```
-用户想要...
-│
-├─── Hub：模型/数据集 ─────────────────────────────
-│   ├── 搜索模型/数据集 → OpenAPI GET /models 或 /datasets
-│   ├── 查看详情 → GET /models/{owner}/{repo} 或 SDK model_info()
-│   ├── 下载 → CLI: ms download owner/repo
-│   ├── 上传 → CLI: ms upload owner/repo ./local
-│   ├── 创建仓库 → CLI: ms create owner/repo
-│   ├── 浏览文件 → SDK: api.get_model_files()
-│   ├── 检查数据集 → uv run scripts/ms_inspect_dataset.py
-│   └── 版本管理 → SDK: api.get_model_branches_and_tags()
-│
-├─── Studio：创空间 ──────────────────────────────
-│   ├── 创建创空间 → POST /studios 或 CLI: ms create owner/repo --repo-type studio
-│   ├── 部署/重启 → CLI: ms deploy owner/repo --repo-type studio
-│   ├── 查看状态 → GET /studios/{owner}/{repo}
-│   ├── 查看日志 → CLI: ms logs owner/repo --log-type run
-│   ├── 停止 → CLI: ms stop owner/repo --repo-type studio
-│   ├── 更新设置 → CLI: ms settings owner/repo key=value --repo-type studio
-│   ├── 可用配置 → GET /studios/hardware, /studios/sdk-versions, /studios/base-images
-│   ├── 明文变量 → GET/POST/PUT/DELETE /studios/{owner}/{repo}/variables
-│   ├── 密文变量 → GET/POST/PUT/DELETE /studios/{owner}/{repo}/secrets（或 ms secret ...）
-│   └── 完整部署流程 → 详见 ms-studio-deploy
-│
-├─── MCP：服务管理 ──────────────────────────────
-│   ├── 搜索 MCP 服务 → CLI: ms mcp list --search "..."
-│   ├── 查看详情 → CLI: ms mcp info @author/name
-│   ├── 部署服务 → CLI: ms mcp deploy @author/name
-│   ├── 卸载服务 → CLI: ms mcp undeploy @author/name
-│   ├── 我的已部署 → GET /mcp/servers/operational
-│   └── IDE 配置 / 完整编排 → 详见 references/mcp-services.md
-│
-├─── Skills：技能中心 ────────────────────────────
-│   ├── 搜索技能 → GET /skills?search=...
-│   ├── 查看详情 → GET /skills/{id}
-│   ├── 安装技能 → modelscope skills add @author/skill-name（legacy CLI；ms 无 skills）
-│   ├── 发布技能 → POST /files/upload + POST /skills
-│   ├── 更新技能 → PATCH /skills/{owner}/{skill_name}/settings
-│   └── 分类体系 / 打包规范 / 完整发布 → 详见 references/skills-center.md
-│
-├─── 用户信息 ───────────────────────────────────
-│   └── GET /users/me
-│
-└─── 不支持 ─────────────────────────────────────
-    ├── Pull Request（ModelScope 无 PR 系统）
-    └── 删除标签/分支（无 API）
-```
+1. **Respect an existing setting** — if `MODELSCOPE_ENDPOINT` is already exported, use it as-is.
+2. **Explicit intent** — "international" / "modelscope.ai" / "overseas" ⇒ international; "domestic" / "modelscope.cn" ⇒ domestic.
+3. **Match the token or URL the user provides** — a `modelscope.ai` token or link ⇒ international (and vice versa).
+4. **Default to the domestic site** (`https://modelscope.cn`) when there is no signal; ask the user if the task clearly targets one audience but the site is ambiguous.
 
-## 一、资源搜索
-
-### OpenAPI 方式
-
-**搜索模型：**
+### Configure
 
 ```bash
-curl "https://modelscope.cn/openapi/v1/models?search=Qwen&sort=downloads&page_size=20" \
+# Export the endpoint first — the examples below reference $MODELSCOPE_ENDPOINT:
+export MODELSCOPE_ENDPOINT="https://modelscope.cn"          # domestic (default)
+# export MODELSCOPE_ENDPOINT="https://www.modelscope.ai"   # international
+export MODELSCOPE_API_KEY="<token issued by THAT site>"     # tokens are site-scoped — must match the site
+```
+
+One `MODELSCOPE_ENDPOINT` reroutes everything derived from it: the OpenAPI base (`$MODELSCOPE_ENDPOINT/openapi/v1`), the `ms` CLI, the `modelscope_hub` SDK, and git push URLs (`$MODELSCOPE_ENDPOINT/{models,datasets,studios}/…`). Resolution precedence (modelscope_hub): explicit arg > `MODELSCOPE_ENDPOINT` > `MODELSCOPE_DOMAIN` (deprecated) > default `https://modelscope.cn`. For public reads you may also set `MODELSCOPE_PREFER_AI_SITE=true` to try `.ai` before `.cn`.
+
+> **Tokens are site-scoped** (stored per endpoint host): a `modelscope.cn` token will not authorize write/private operations on `modelscope.ai`. Get each site's token from `$MODELSCOPE_ENDPOINT/my/myaccesstoken`.
+>
+> All examples below use `$MODELSCOPE_ENDPOINT/openapi/v1` as the base — **export `MODELSCOPE_ENDPOINT` first** (raw `curl` needs it set; the `ms` CLI and SDK additionally fall back to `https://modelscope.cn` when it is unset). A few marketplace/doc links (skills `install.sh`, `/docs/…`) show the domestic host — swap to your site's host when targeting international.
+
+## Conventions
+
+| Item | Value |
+|------|-----|
+| **OpenAPI Base URL** | `$MODELSCOPE_ENDPOINT/openapi/v1` (default `https://modelscope.cn`) |
+| **Success response** | `{"success": true, "data": {...}, "request_id": "..."}` |
+| **Error response** | `{"success": false, "code": "ERROR_CODE", "message": "..."}` |
+| **HTTP status codes** | `200` success / `401` unauthorized / `404` not found / `500` server error |
+| **Default branch** | `master` (not main) |
+| **Pagination limit** | `page_number × page_size ≤ 3000` |
+
+## Quick Decision Guide
+
+```
+User wants to...
+│
+├─── Hub: models/datasets ─────────────────────────────
+│   ├── Search models/datasets → OpenAPI GET /models or /datasets
+│   ├── View details → GET /models/{owner}/{repo} or SDK model_info()
+│   ├── Download → CLI: ms download owner/repo
+│   ├── Upload → CLI: ms upload owner/repo ./local
+│   ├── Create repository → CLI: ms create owner/repo
+│   ├── Browse files → SDK: api.get_model_files()
+│   ├── Inspect dataset → uv run scripts/ms_inspect_dataset.py
+│   └── Version management → SDK: api.get_model_branches_and_tags()
+│
+├─── Studio ──────────────────────────────
+│   ├── Create Studio → POST /studios or CLI: ms create owner/repo --repo-type studio
+│   ├── Deploy/restart → CLI: ms deploy owner/repo --repo-type studio
+│   ├── View status → GET /studios/{owner}/{repo}
+│   ├── View logs → CLI: ms logs owner/repo --log-type run
+│   ├── Stop → CLI: ms stop owner/repo --repo-type studio
+│   ├── Update settings → CLI: ms settings owner/repo key=value --repo-type studio
+│   ├── Available configs → GET /studios/hardware, /studios/sdk-versions, /studios/base-images
+│   ├── Plaintext variables → GET/POST/PUT/DELETE /studios/{owner}/{repo}/variables
+│   ├── Secrets → GET/POST/PUT/DELETE /studios/{owner}/{repo}/secrets (or ms secret ...)
+│   └── Full deployment workflow → see ms-studio-deploy
+│
+├─── MCP: service management ──────────────────────────────
+│   ├── Search MCP services → CLI: ms mcp list --search "..."
+│   ├── View details → CLI: ms mcp info @author/name
+│   ├── Deploy service → CLI: ms mcp deploy @author/name
+│   ├── Undeploy service → CLI: ms mcp undeploy @author/name
+│   ├── My deployed → GET /mcp/servers/operational
+│   └── IDE configuration / full orchestration → see references/mcp-services.md
+│
+├─── Skills: Skills Center ────────────────────────────
+│   ├── Search skills → GET /skills?search=...
+│   ├── View details → GET /skills/{id}
+│   ├── Install skill → modelscope skills add @author/skill-name (legacy CLI; ms has no skills)
+│   ├── Publish skill → POST /files/upload + POST /skills
+│   ├── Update skill → PATCH /skills/{owner}/{skill_name}/settings
+│   └── Category system / packaging spec / full publish → see references/skills-center.md
+│
+├─── User info ───────────────────────────────────
+│   └── GET /users/me
+│
+└─── Not supported ─────────────────────────────────────
+    ├── Pull Request (ModelScope has no PR system)
+    └── Delete tags/branches (no API)
+```
+
+## 1. Resource Search
+
+### OpenAPI Method
+
+**Search models:**
+
+```bash
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/models?search=Qwen&sort=downloads&page_size=20" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 ```
 
-**搜索参数：**
+**Search parameters:**
 
-| 参数 | 说明 | 示例 |
+| Parameter | Description | Example |
 |------|------|------|
-| `search` | 关键词 | `"Qwen"`, `"文本生成"` |
-| `owner` | 作者/组织 | `"Qwen"`, `"ZhipuAI"` |
-| `sort` | 排序 | `default`, `downloads`, `likes`, `last_modified` |
-| `page_size` | 每页数量（最大 50） | `20` |
-| `filter.task` | 任务类型 | `text-generation`, `image-captioning` |
-| `filter.library` | 框架 | `pytorch`, `safetensors`, `diffusers` |
-| `filter.model_type` | 模型类型 | `qwen3_moe`, `glm4v`, `llama` |
-| `filter.license` | 许可证 | `Apache License 2.0`, `MIT License` |
+| `search` | Keyword | `"Qwen"`, `"text generation"` |
+| `owner` | Author/organization | `"Qwen"`, `"ZhipuAI"` |
+| `sort` | Sort | `default`, `downloads`, `likes`, `last_modified` |
+| `page_size` | Items per page (max 50) | `20` |
+| `filter.task` | Task type | `text-generation`, `image-captioning` |
+| `filter.library` | Framework | `pytorch`, `safetensors`, `diffusers` |
+| `filter.model_type` | Model type | `qwen3_moe`, `glm4v`, `llama` |
+| `filter.license` | License | `Apache License 2.0`, `MIT License` |
 
-**常用筛选组合：**
+**Common filter combinations:**
 
 ```bash
-# PyTorch 文本生成模型，按下载量排序
+# PyTorch text-generation models, sorted by downloads
 /models?filter.library=pytorch&filter.task=text-generation&sort=downloads
 
-# 特定作者的所有模型
+# All models from a specific author
 /models?owner=Qwen&sort=last_modified
 ```
 
-**搜索数据集：**
+**Search datasets:**
 
 ```bash
-curl "https://modelscope.cn/openapi/v1/datasets?search=中文对话&sort=downloads&page_size=10" \
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/datasets?search=dialogue&sort=downloads&page_size=10" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 ```
 
-**OpenAPI 响应结构（模型列表）：**
+**OpenAPI response structure (model list):**
 
 ```json
 {"data": {"models": [{"id": "Qwen/...", "downloads": N, "likes": N, "license": "...", "tasks": [...]}], "total_count": N}}
 ```
 
-### SDK 方式
+### SDK Method
 
 ```python
 from modelscope.hub.api import HubApi
 
 api = HubApi()
 
-# 搜索模型 → dict{"Models": [...], "TotalCount": N}
+# Search models → dict{"Models": [...], "TotalCount": N}
 result = api.list_models(owner_or_group="Qwen", page_number=1, page_size=20)
 for m in result["Models"]:
     print(f"{m['Path']} ({m['Downloads']} downloads)")
 
-# 搜索数据集 → dict{"datasets": [...], "total_count": N}
+# Search datasets → dict{"datasets": [...], "total_count": N}
 result = api.list_datasets(owner_or_group="AI-ModelScope", page_number=1, page_size=20)
 for d in result["datasets"]:
     print(f"{d['id']} ({d['downloads']} downloads)")
 ```
 
-> **SDK vs OpenAPI 字段名差异**：SDK `list_models` 返回 PascalCase（`Path`, `Downloads`），OpenAPI `/models` 返回 snake_case（`id`, `downloads`）。`list_datasets` 两边均为 snake_case。
+> **SDK vs OpenAPI field name differences**: SDK `list_models` returns PascalCase (`Path`, `Downloads`), while OpenAPI `/models` returns snake_case (`id`, `downloads`). `list_datasets` is snake_case on both sides.
 
-## 二、查看详情
+## 2. View Details
 
-### OpenAPI 方式
+### OpenAPI Method
 
 ```bash
-# 模型详情
-curl "https://modelscope.cn/openapi/v1/models/Qwen/Qwen2.5-72B-Instruct" \
+# Model details
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/models/Qwen/Qwen2.5-72B-Instruct" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 
-# 数据集详情
-curl "https://modelscope.cn/openapi/v1/datasets/AI-ModelScope/alpaca-gpt4-data-zh" \
+# Dataset details
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/datasets/AI-ModelScope/alpaca-gpt4-data-zh" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 ```
 
-### SDK 方式（信息更完整）
+### SDK Method (more complete info)
 
 ```python
 info = api.model_info("Qwen/Qwen2.5-72B-Instruct")
-# info.readme_content  - README 全文
-# info.tags            - 标签列表
-# info.downloads       - 下载量
-# info.siblings        - 文件列表（含 rfilename, size, sha）
-# info.visibility      - 可见性（1=私有, 5=公开）
+# info.readme_content  - Full README text
+# info.tags            - Tag list
+# info.downloads       - Download count
+# info.siblings        - File list (incl. rfilename, size, sha)
+# info.visibility      - Visibility (1=private, 5=public)
 
 info = api.dataset_info("AI-ModelScope/alpaca-gpt4-data-zh")
 ```
 
-### 获取用户信息
+### Get User Info
 
 ```bash
-curl "https://modelscope.cn/openapi/v1/users/me" \
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/users/me" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 ```
 
-## 三、仓库管理
+## 3. Repository Management
 
-### 创建仓库
+### Create Repository
 
 ```bash
-# CLI（--repo-type 必填）
+# CLI (--repo-type required)
 ms create owner/repo-name --repo-type model
 ms create owner/repo-name --repo-type model --visibility private
 ms create owner/dataset-name --repo-type dataset
 ```
 
 ```python
-# SDK：通用创建 —— 注意 create_repo 的 visibility 用字符串 "public"/"private"
+# SDK: general creation — note that create_repo's visibility uses the string "public"/"private"
 api.create_repo(
     repo_id="owner/repo-name",
-    repo_type="model",            # "model" 或 "dataset"
-    visibility="public",          # "public" 或 "private"（字符串，非整数）
+    repo_type="model",            # "model" or "dataset"
+    visibility="public",          # "public" or "private" (string, not integer)
     license="Apache License 2.0",
     exist_ok=True
 )
 
-# 模型专用 —— create_model/create_dataset 的 visibility 用整数 1=私有, 5=公开
+# Model-specific — create_model/create_dataset visibility uses integers 1=private, 5=public
 api.create_model(model_id="owner/model-name", visibility=5)
 
-# 数据集专用
+# Dataset-specific
 api.create_dataset(
     dataset_name="dataset-name",
     namespace="owner",
     visibility=5
 )
 
-# AIGC/LoRA 模型：通过 SDK 的 aigc_model 参数（create_repo/create_model），无对应 CLI flag
+# AIGC/LoRA models: via the SDK's aigc_model parameter (create_repo/create_model); no corresponding CLI flag
 ```
 
-### 检查仓库是否存在
+### Check Whether a Repository Exists
 
 ```python
 exists = api.repo_exists(repo_id="owner/repo", repo_type="model")
 ```
 
-### 设置可见性
+### Set Visibility
 
 ```python
-# visibility 用字符串 "public" / "private"（非整数）
+# visibility uses the string "public" / "private" (not an integer)
 api.set_repo_visibility(repo_id="owner/repo", repo_type="model", visibility="private")
 ```
 
-### 删除仓库
+### Delete Repository
 
-> ⚠️ **仓库删除已被平台限制为仅网页控制台**：`api.delete_repo(...)` 在 token 鉴权下返回 401（"Deletion is restricted to web console"），无法编程删除。请到 https://modelscope.cn 网页端操作。
+> ⚠️ **Repository deletion has been restricted by the platform to the web console only**: `api.delete_repo(...)` returns 401 under token authentication ("Deletion is restricted to web console") and cannot be deleted programmatically. Please perform this operation on the web at https://modelscope.cn.
 
-## 四、文件操作
+## 4. File Operations
 
-### 列出文件
+### List Files
 
 ```python
 files = api.get_model_files(
@@ -268,16 +294,16 @@ files = api.get_model_files(
     recursive=True
 )
 for f in files:
-    print(f"  {f['Name']}  大小: {f.get('Size', '未知')}")
+    print(f"  {f['Name']}  Size: {f.get('Size', 'unknown')}")
 
-# 检查文件是否存在
+# Check whether a file exists
 exists = api.file_exists(repo_id="owner/repo", filename="config.json", revision="master")
 ```
 
-### 读取文件内容
+### Read File Content
 
 ```bash
-# 使用工具脚本
+# Use the helper script
 uv run scripts/ms_read_file.py \
     --repo_id "Qwen/Qwen2.5-7B-Instruct" \
     --file_path "config.json" \
@@ -285,7 +311,7 @@ uv run scripts/ms_read_file.py \
 ```
 
 ```python
-# SDK 手动下载
+# SDK manual download
 from modelscope.hub.file_download import model_file_download
 
 local_path = model_file_download(
@@ -294,67 +320,67 @@ local_path = model_file_download(
 )
 ```
 
-### 下载模型/文件
+### Download Models/Files
 
 ```bash
-# CLI 下载完整模型
+# CLI: download the full model
 ms download Qwen/Qwen2.5-7B-Instruct
 
-# CLI 下载指定文件
+# CLI: download a specific file
 ms download Qwen/Qwen2.5-7B-Instruct config.json
 
-# CLI 按模式筛选
+# CLI: filter by pattern
 ms download Qwen/Qwen2.5-7B-Instruct --include "*.json" --exclude "*.safetensors"
 ```
 
 ```python
-# SDK 下载快照
+# SDK: download snapshot
 from modelscope import snapshot_download
 
 local_dir = snapshot_download(
     model_id="Qwen/Qwen2.5-7B-Instruct",
     cache_dir="/tmp/models",
-    allow_file_pattern=["*.json", "*.md"],    # 只下载匹配文件
-    ignore_file_pattern=["*.safetensors"]     # 排除大文件
+    allow_file_pattern=["*.json", "*.md"],    # Download only matching files
+    ignore_file_pattern=["*.safetensors"]     # Exclude large files
 )
 
-# 数据集单文件下载
+# Download a single dataset file
 from modelscope.hub.file_download import dataset_file_download
 local_path = dataset_file_download(dataset_id="owner/dataset", file_path="data/train.jsonl")
 ```
 
-### 上传文件
+### Upload Files
 
 ```bash
-# CLI 上传目录
+# CLI: upload a directory
 ms upload owner/repo ./local-dir
 ```
 
 ```python
-# SDK 上传单文件
+# SDK: upload a single file
 api.upload_file(
     path_or_fileobj="/path/to/file.txt",
     path_in_repo="data/file.txt",
     repo_id="owner/repo",
     repo_type="model",
-    commit_message="添加数据文件"
+    commit_message="Add data file"
 )
 
-# SDK 上传目录
+# SDK: upload a directory
 api.upload_folder(
     repo_id="owner/repo",
     folder_path="/path/to/folder",
-    commit_message="上传模型文件",
+    commit_message="Upload model files",
     repo_type="model",
     ignore_patterns=["*.pyc", "__pycache__", ".git"]
 )
 ```
 
-### 删除文件
+### Delete Files
 
-> ⚠️ **文件删除同样被限制为仅网页控制台**：`api.delete_files(...)` 在 token 鉴权下不生效（旧 SDK 静默返回 `failed_files`，文件仍在；新 `modelscope_hub` 报 401 "Deletion is restricted to web console"）。如需删除文件，请到 https://modelscope.cn 网页控制台，或克隆仓库（git）、删除文件后提交推送。
+> ⚠️ **File deletion is likewise restricted to the web console only**: `api.delete_files(...)` has no effect under token authentication (the old SDK silently returns `failed_files` while the files remain; the new `modelscope_hub` reports 401 "Deletion is restricted to web console"). To delete files, go to the web console at https://modelscope.cn, or clone the repository (git), delete the files, then commit and push.
 
-### 多文件原子提交
+### Atomic Multi-File Commit
 
 ```python
 from modelscope.hub.api import CommitOperationAdd
@@ -365,92 +391,92 @@ operations = [
 ]
 api.create_commit(
     repo_id="owner/repo", operations=operations,
-    commit_message="更新配置和文档", repo_type="model"
+    commit_message="Update config and docs", repo_type="model"
 )
 ```
 
-### Notebook / 教程适配
+### Notebook / Tutorial Adaptation
 
-从 HuggingFace、Colab、GitHub 教程迁移到 ModelScope 时，核心是替换资产来源：
+When migrating from HuggingFace, Colab, or GitHub tutorials to ModelScope, the core task is replacing the asset sources:
 
-1. **模型下载**：将 `hf_hub_download` / HF `snapshot_download` 替换为上方的 `ms download` 或 SDK `snapshot_download`
-2. **数据集加载**：将 `datasets.load_dataset("hf_id")` 替换为 `MsDataset.load("ms_id")` 或 `dataset_snapshot_download`
-3. **仓库搜索**：用 OpenAPI 或 SDK 搜索 ModelScope 上的等效资源
+1. **Model download**: Replace `hf_hub_download` / HF `snapshot_download` with the `ms download` above or the SDK `snapshot_download`
+2. **Dataset loading**: Replace `datasets.load_dataset("hf_id")` with `MsDataset.load("ms_id")` or `dataset_snapshot_download`
+3. **Repository search**: Use OpenAPI or the SDK to search for equivalent resources on ModelScope
 
-> 完整适配工作流（资产映射、许可检查、执行验证）参见：`modelscope skills add VoyagerX/modelscope-notebook-develop`
+> For the complete adaptation workflow (asset mapping, license checking, execution validation), see: `modelscope skills add VoyagerX/modelscope-notebook-develop`
 
-### 防错对比
+### Error-Prevention Comparison
 
 ```python
-# ✅ CORRECT — 显式指定 repo_type 提高可读性
+# ✅ CORRECT — Explicitly specifying repo_type improves readability
 api.upload_folder(repo_id="owner/repo", folder_path="./local", repo_type="model")
 
-# ⚠️ 也能工作（repo_type 默认为 model），但建议显式指定
+# ⚠️ Also works (repo_type defaults to model), but explicit is recommended
 api.upload_folder(repo_id="owner/repo", folder_path="./local")
 
-# ✅ CORRECT — 使用 model_id 参数
+# ✅ CORRECT — Use the model_id parameter
 snapshot_download(model_id="Qwen/Qwen2.5-7B-Instruct")
 
-# ⚠️ repo_id 也有效，但 model_id 语义更清晰
+# ⚠️ repo_id also works, but model_id is semantically clearer
 snapshot_download(repo_id="Qwen/Qwen2.5-7B-Instruct")
 ```
 
-## 五、数据集检查
+## 5. Dataset Inspection
 
-ModelScope 目前可以通过前述 API/SDK/CLI 的组合可以完成数据集探索：
+ModelScope currently supports dataset exploration through a combination of the API/SDK/CLI described above:
 
-- **元信息**：`api.dataset_info()` 或 OpenAPI `GET /datasets/{id}` → 描述、标签、文件列表
-- **文件浏览**：`api.get_dataset_files()` → 列出所有文件及大小
-- **内容读取**：`ms_read_file.py --repo_type dataset` → 下载并查看单个文件内容
-- **深度检查**：`ms_inspect_dataset.py` → 封装上述能力 + `MsDataset.load`，一步完成 schema 提取和样本预览（需下载数据到本地）
+- **Metadata**: `api.dataset_info()` or OpenAPI `GET /datasets/{id}` → description, tags, file list
+- **File browsing**: `api.get_dataset_files()` → list all files and their sizes
+- **Content reading**: `ms_read_file.py --repo_type dataset` → download and view the content of a single file
+- **Deep inspection**: `ms_inspect_dataset.py` → wraps the above capabilities + `MsDataset.load` to perform schema extraction and sample preview in one step (requires downloading data locally)
 
-### 使用辅助脚本
+### Using the Helper Script
 
-通过辅助脚本 `scripts/ms_inspect_dataset.py` 快速了解数据集的文件结构、字段 schema 和样本内容。脚本内部调用 SDK（`HubApi.dataset_info` + `MsDataset.load`）完成操作。
+Use the helper script `scripts/ms_inspect_dataset.py` to quickly understand a dataset's file structure, field schema, and sample content. Internally the script calls the SDK (`HubApi.dataset_info` + `MsDataset.load`) to perform the operations.
 
-> 下方示例用 `uv run`（零配置）；已安装 modelscope 的环境也可直接 `python scripts/ms_inspect_dataset.py ...`，参见文末「工具脚本」。
+> The examples below use `uv run` (zero-config); in an environment with modelscope already installed you can also run `python scripts/ms_inspect_dataset.py ...` directly — see "Helper Scripts" at the end of the document.
 
 ```bash
-# 完整检查（文件结构 + schema + 样本预览）
+# Full inspection (file structure + schema + sample preview)
 uv run scripts/ms_inspect_dataset.py \
     --dataset_id "AI-ModelScope/alpaca-gpt4-data-zh" \
     --operation full
 
-# 仅查看文件结构
+# View file structure only
 uv run scripts/ms_inspect_dataset.py \
     --dataset_id "AI-ModelScope/alpaca-gpt4-data-zh" \
     --operation overview
 
-# 仅查看 schema
+# View schema only
 uv run scripts/ms_inspect_dataset.py \
     --dataset_id "AI-ModelScope/alpaca-gpt4-data-zh" \
     --operation schema --split train
 
-# 仅预览样本
+# Preview samples only
 uv run scripts/ms_inspect_dataset.py \
     --dataset_id "AI-ModelScope/alpaca-gpt4-data-zh" \
     --operation samples --num_samples 5
 ```
 
-## 六、版本控制
+## 6. Version Control
 
-### 列出分支和标签
+### List Branches and Tags
 
 ```python
 branches, tags = api.get_model_branches_and_tags(model_id="Qwen/Qwen2.5-7B-Instruct")
 
-# 详细信息（含 commit hash、时间等）
+# Detailed info (incl. commit hash, timestamps, etc.)
 details = api.get_model_branches_and_tags_details(model_id="owner/repo")
 ```
 
-### 验证 Revision
+### Validate Revision
 
 ```python
-# 首参为 model_id（不是 repo_id）
+# First argument is model_id (not repo_id)
 valid = api.get_valid_revision(model_id="owner/repo", revision="v1.0")
 ```
 
-### 创建标签
+### Create Tag
 
 ```python
 api.create_model_tag(
@@ -459,7 +485,7 @@ api.create_model_tag(
 )
 ```
 
-### 查看提交历史
+### View Commit History
 
 ```python
 commits = api.list_repo_commits(
@@ -471,132 +497,132 @@ commits = api.list_repo_commits(
 )
 ```
 
-### 已知限制
+### Known Limitations
 
-| 操作 | 状态 | 说明 |
+| Operation | Status | Notes |
 |------|------|------|
-| 列出分支/标签 | ✅ | `get_model_branches_and_tags()` |
-| 创建标签 | ✅ | `create_model_tag()` |
-| 删除标签 | ❌ | 无 API |
-| 创建分支 | ❌ | 需 `git clone` → `git checkout -b` → `git push` |
-| 删除分支 | ❌ | 无 API |
-| 合并分支 | ❌ | ModelScope 无 PR 系统 |
+| List branches/tags | ✅ | `get_model_branches_and_tags()` |
+| Create tag | ✅ | `create_model_tag()` |
+| Delete tag | ❌ | No API |
+| Create branch | ❌ | Requires `git clone` → `git checkout -b` → `git push` |
+| Delete branch | ❌ | No API |
+| Merge branch | ❌ | ModelScope has no PR system |
 
-## 七、创空间操作（Studio）
+## 7. Studio Operations
 
-> 完整部署流程（含代码同步、诊断修复）→ ms-studio-deploy（**以 OpenAPI 为事实来源**，CLI 为等价别名）
+> For the complete deployment workflow (including code sync, diagnosis and repair) → ms-studio-deploy (**OpenAPI is the source of truth**, CLI is an equivalent alias)
 >
-> CLI 由 modelscope_hub 驱动，是 OpenAPI 的 1:1 薄包装；API 优先的 Python 入口为 `from modelscope_hub import HubApi`。
-> 如果 agent 已配置 studio-mcp 工具，也可使用 MCP 工具（`createStudio`, `deployStudio` 等）。
+> The CLI is driven by modelscope_hub and is a 1:1 thin wrapper around OpenAPI; the API-first Python entrypoint is `from modelscope_hub import HubApi`.
+> If the agent already has the studio-mcp tools configured, you can also use the MCP tools (`createStudio`, `deployStudio`, etc.).
 
-### 创建创空间
+### Create Studio
 
 ```bash
 # CLI
 ms create USERNAME/my-app --repo-type studio --sdk-type gradio --private
 
 # OpenAPI
-curl -X POST "https://modelscope.cn/openapi/v1/studios" \
+curl -X POST "$MODELSCOPE_ENDPOINT/openapi/v1/studios" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"owner": "USERNAME", "repo_name": "my-app", "sdk_type": "gradio", "visibility": "private"}'
 ```
 
-| sdk_type | 适用场景 |
+| sdk_type | Use case |
 |----------|----------|
-| `gradio` | Gradio 应用（入口 app.py） |
-| `streamlit` | Streamlit 应用 |
-| `docker` | 自定义 Docker（端口必须 7860） |
-| `static` | 纯静态网站（已构建） |
+| `gradio` | Gradio app (entrypoint app.py) |
+| `streamlit` | Streamlit app |
+| `docker` | Custom Docker (port must be 7860) |
+| `static` | Pure static website (already built) |
 
-### 查询可用配置
+### Query Available Configs
 
 ```bash
-curl "https://modelscope.cn/openapi/v1/studios/hardware?sdk_type=gradio" \
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/studios/hardware?sdk_type=gradio" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
-curl "https://modelscope.cn/openapi/v1/studios/sdk-versions?sdk_type=gradio" \
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/studios/sdk-versions?sdk_type=gradio" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
-curl "https://modelscope.cn/openapi/v1/studios/base-images" \
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/studios/base-images" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 ```
 
-已有创空间时可给硬件查询追加 `&studio=USERNAME/my-app`。`hardware` 使用返回项的 `name`；付费资源格式为 `paid/<InstanceType>`。Gradio `sdk_version` 使用返回项的 `version`，`base_image` 使用返回项的 `name`。
+When a Studio already exists, you can append `&studio=USERNAME/my-app` to the hardware query. `hardware` uses the `name` of the returned items; the paid-resource format is `paid/<InstanceType>`. Gradio `sdk_version` uses the `version` of the returned items, and `base_image` uses the `name` of the returned items.
 
-**付费资源授权要求：** 使用 `paid/<InstanceType>` 或返回项 `resource_type=paid` 会对用户 ModelScope 绑定的阿里云账号产生费用；必须先明确告知并得到用户明确授权，才能创建、更新设置或重新部署。
+**Paid-resource authorization requirement:** Using `paid/<InstanceType>` or a returned item with `resource_type=paid` incurs charges on the Alibaba Cloud account bound to the user's ModelScope; you must first clearly inform the user and obtain their explicit authorization before creating, updating settings, or redeploying.
 
-### 部署/重启
+### Deploy/Restart
 
 ```bash
 # CLI
 ms deploy USERNAME/my-app --repo-type studio
 
 # OpenAPI
-curl -X POST "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/deploy" \
+curl -X POST "$MODELSCOPE_ENDPOINT/openapi/v1/studios/USERNAME/my-app/deploy" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 ```
 
-### 查看状态与日志
+### View Status and Logs
 
 ```bash
 # CLI
 ms logs USERNAME/my-app --log-type run
-ms logs USERNAME/my-app --log-type build  # Docker 类型
+ms logs USERNAME/my-app --log-type build  # Docker type
 
 # OpenAPI
-curl "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app" \
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/studios/USERNAME/my-app" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
-curl "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/logs/run" \
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/studios/USERNAME/my-app/logs/run" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 ```
 
-### 停止
+### Stop
 
 ```bash
 # CLI
 ms stop USERNAME/my-app --repo-type studio
 
 # OpenAPI
-curl -X POST "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/stop" \
+curl -X POST "$MODELSCOPE_ENDPOINT/openapi/v1/studios/USERNAME/my-app/stop" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 ```
 
-### 更新设置
+### Update Settings
 
 ```bash
 # CLI
-ms settings USERNAME/my-app --repo-type studio display_name="新名称" private=false
+ms settings USERNAME/my-app --repo-type studio display_name="New name" private=false
 
 # OpenAPI
-curl -X PATCH "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/settings" \
+curl -X PATCH "$MODELSCOPE_ENDPOINT/openapi/v1/studios/USERNAME/my-app/settings" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"display_name": "新名称", "visibility": "public", "sdk_type": "gradio"}'
+  -d '{"display_name": "New name", "visibility": "public", "sdk_type": "gradio"}'
 ```
 
-可更新字段：`display_name`, `description`, `visibility`, `sdk_type`, `sdk_version`, `base_image`, `hardware`, `license`。`private` 已废弃，OpenAPI 优先使用 `visibility`。
+Updatable fields: `display_name`, `description`, `visibility`, `sdk_type`, `sdk_version`, `base_image`, `hardware`, `license`. `private` is deprecated; OpenAPI prefers `visibility`.
 
-### 变量管理
+### Variable Management
 
-明文变量返回 key 和 value，仅用于非敏感配置：
+Plaintext variables return both key and value, and are used only for non-sensitive configuration:
 
 ```bash
-curl "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/variables" \
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/studios/USERNAME/my-app/variables" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
-curl -X POST "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/variables" \
+curl -X POST "$MODELSCOPE_ENDPOINT/openapi/v1/studios/USERNAME/my-app/variables" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"key": "GRADIO_TEMP_DIR", "value": "/tmp/gradio"}'
-curl -X PUT "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/variables" \
+curl -X PUT "$MODELSCOPE_ENDPOINT/openapi/v1/studios/USERNAME/my-app/variables" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"key": "GRADIO_TEMP_DIR", "value": "/mnt/workspace/tmp"}'
-curl -X DELETE "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/variables" \
+curl -X DELETE "$MODELSCOPE_ENDPOINT/openapi/v1/studios/USERNAME/my-app/variables" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"key": "GRADIO_TEMP_DIR"}'
 ```
 
-密文变量只返回 key，不返回 value，用于 API Key、Token、密码等敏感信息：
+Secrets return only the key, not the value, and are used for sensitive information such as API keys, tokens, and passwords:
 
 ```bash
 # CLI
@@ -606,85 +632,85 @@ ms secret update USERNAME/my-app API_KEY new-value
 ms secret delete USERNAME/my-app API_KEY
 
 # OpenAPI
-curl "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/secrets" \
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/studios/USERNAME/my-app/secrets" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
-curl -X POST "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/secrets" \
+curl -X POST "$MODELSCOPE_ENDPOINT/openapi/v1/studios/USERNAME/my-app/secrets" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"key": "API_KEY", "value": "sk-xxx"}'
-curl -X PUT "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/secrets" \
+curl -X PUT "$MODELSCOPE_ENDPOINT/openapi/v1/studios/USERNAME/my-app/secrets" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"key": "API_KEY", "value": "new-value"}'
-# 删除：key 放 body，不是路径参数（DELETE .../{key} 会 404）
-curl -X DELETE "https://modelscope.cn/openapi/v1/studios/USERNAME/my-app/secrets" \
+# Delete: put the key in the body, not as a path parameter (DELETE .../{key} returns 404)
+curl -X DELETE "$MODELSCOPE_ENDPOINT/openapi/v1/studios/USERNAME/my-app/secrets" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"key": "API_KEY"}'
 ```
 
-### 代码同步
+### Code Sync
 
 ```bash
 git remote add modelscope https://oauth2:${MODELSCOPE_API_KEY}@www.modelscope.cn/studios/${owner}/${repo}.git
 git push -u modelscope master
 ```
 
-## 八、MCP 服务操作
+## 8. MCP Service Operations
 
-> 完整编排、IDE 配置模板、SDK↔OpenAPI 字段差异 → 详见 `references/mcp-services.md`
+> Full orchestration, IDE configuration templates, SDK↔OpenAPI field differences → see `references/mcp-services.md`
 >
-> 分页上限 `page_number × page_size ≤ 100`（服务端强制，超出 HTTP 403）。
+> Pagination limit `page_number × page_size ≤ 100` (server-enforced; exceeding it returns HTTP 403).
 
-### 搜索 MCP 服务
+### Search MCP Services
 
 ```bash
 # CLI
-ms mcp list --search "地图" --page-size 20
+ms mcp list --search "map" --page-size 20
 
 # OpenAPI
-curl -X PUT "https://modelscope.cn/openapi/v1/mcp/servers" \
+curl -X PUT "$MODELSCOPE_ENDPOINT/openapi/v1/mcp/servers" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"search": "地图", "page_size": 20}'
+  -d '{"search": "map", "page_size": 20}'
 ```
 
-### 查看服务详情
+### View Service Details
 
 ```bash
 # CLI
 ms mcp info @amap/amap-maps
 
 # OpenAPI
-curl "https://modelscope.cn/openapi/v1/mcp/servers/@amap/amap-maps" \
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/mcp/servers/@amap/amap-maps" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 ```
 
-### 部署与卸载
+### Deploy and Undeploy
 
-部署时 **`transport_type` 必填**，合法值 `sse` / `streamable_http`；部署的 transport 决定返回的唯一 URL（`sse`→`.../sse`，`streamable_http`→`.../mcp`）。
+When deploying, **`transport_type` is required**, with valid values `sse` / `streamable_http`; the deployed transport determines the unique URL returned (`sse`→`.../sse`, `streamable_http`→`.../mcp`).
 
 ```bash
-# CLI（默认 sse；另一种用 --transport-type streamable_http）
+# CLI (defaults to sse; the other option uses --transport-type streamable_http)
 ms mcp deploy @amap/amap-maps
 ms mcp undeploy @amap/amap-maps
 
-# OpenAPI（必须带 transport_type，否则 HTTP 400 invalid transport_type）
-curl -X POST "https://modelscope.cn/openapi/v1/mcp/servers/@amap/amap-maps/deploy" \
+# OpenAPI (must include transport_type, otherwise HTTP 400 invalid transport_type)
+curl -X POST "$MODELSCOPE_ENDPOINT/openapi/v1/mcp/servers/@amap/amap-maps/deploy" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" -H "Content-Type: application/json" \
   -d '{"transport_type": "streamable_http"}'
-curl -X DELETE "https://modelscope.cn/openapi/v1/mcp/servers/@amap/amap-maps/undeploy" \
+curl -X DELETE "$MODELSCOPE_ENDPOINT/openapi/v1/mcp/servers/@amap/amap-maps/undeploy" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 ```
 
-### 查看我的已部署服务
+### View My Deployed Services
 
 ```bash
-curl "https://modelscope.cn/openapi/v1/mcp/servers/operational" \
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/mcp/servers/operational" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 ```
 
-### SDK 方式
+### SDK Method
 
 ```python
 from modelscope.hub.mcp_api import MCPApi
@@ -692,143 +718,143 @@ from modelscope.hub.mcp_api import MCPApi
 mcp = MCPApi()
 mcp.login(access_token="YOUR_TOKEN")
 
-# 搜索 → {"total_count": N, "servers": [{"name", "id", "description"}, ...]}
-result = mcp.list_mcp_servers(search="天气", total_count=20)
+# Search → {"total_count": N, "servers": [{"name", "id", "description"}, ...]}
+result = mcp.list_mcp_servers(search="weather", total_count=20)
 for s in result["servers"]:
     print(f"{s['id']}: {s['description']}")
 
-# 详情 → {"name", "description", "id", "servers": [{"type", "url"}, ...]}
+# Details → {"name", "description", "id", "servers": [{"type", "url"}, ...]}
 detail = mcp.get_mcp_server(server_id="@amap/amap-maps")
 
-# 已部署 → {"total_count": N, "servers": [{"name", "id", "mcp_servers": [{"type", "url"}]}, ...]}
+# Deployed → {"total_count": N, "servers": [{"name", "id", "mcp_servers": [{"type", "url"}]}, ...]}
 operational = mcp.list_operational_mcp_servers()
 ```
 
-> `modelscope.hub.mcp_api.MCPApi` 仅支持搜索、详情、已部署列表。部署/卸载使用 CLI `ms mcp deploy/undeploy` 或 OpenAPI。
+> `modelscope.hub.mcp_api.MCPApi` supports only search, details, and the deployed list. Use the CLI `ms mcp deploy/undeploy` or OpenAPI for deploy/undeploy.
 
-## 九、技能中心操作（Skills）
+## 9. Skills Center Operations
 
-> 分类体系、打包规范、完整发布/更新/安装 → 详见 `references/skills-center.md`
+> Category system, packaging spec, complete publish/update/install → see `references/skills-center.md`
 
-### 搜索技能
+### Search Skills
 
 ```bash
-curl "https://modelscope.cn/openapi/v1/skills?search=代码审查&page_size=20" \
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/skills?search=code-review&page_size=20" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
 ```
 
-### 查看技能详情
+### View Skill Details
 
 ```bash
-curl "https://modelscope.cn/openapi/v1/skills/@ModelScope/modelscope-oauth-skill" \
+curl "$MODELSCOPE_ENDPOINT/openapi/v1/skills/@ModelScope/modelscope-oauth-skill" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY"
-# 返回 install_command 数组，含多种安装方式
+# Returns an install_command array containing multiple installation methods
 ```
 
-### 安装技能
+### Install Skill
 
-> ⚠️ `skills add` 是 **legacy `modelscope` CLI** 的命令，`ms`（modelscope_hub）**没有** `skills`。若 `modelscope`/`ms` 入口被 modelscope_hub 覆盖而报「no skills command」，改用下方 `curl install.sh` 或 SDK `download_skill`（两者最可靠）。
+> ⚠️ `skills add` is a command of the **legacy `modelscope` CLI**; `ms` (modelscope_hub) **does not have** `skills`. If the `modelscope`/`ms` entrypoint is overridden by modelscope_hub and reports "no skills command", switch to the `curl install.sh` or SDK `download_skill` below (both are the most reliable).
 
 ```bash
-# 方式一：modelscope（legacy）CLI
+# Option 1: modelscope (legacy) CLI
 modelscope skills add @author/skill-name
-modelscope skills add @author/skill-name --local_dir ./my-skills   # 指定目录
-modelscope skills add @author/skill-1 @author/skill-2              # 批量
+modelscope skills add @author/skill-name --local_dir ./my-skills   # Specify directory
+modelscope skills add @author/skill-1 @author/skill-2              # Batch
 
-# 方式二：Shell 脚本（最可靠，无入口冲突）
+# Option 2: Shell script (most reliable, no entrypoint conflicts)
 curl -fsSL https://modelscope.cn/skills/install.sh | bash -s -- @author/skill-name
 curl -fsSL https://modelscope.cn/skills/install.sh | bash -s -- @author/skill-name --agent cursor
 ```
 
 ```python
-# 方式三：SDK（实测可靠）
+# Option 3: SDK (verified reliable)
 from modelscope.hub.mcp_api import MCPApi
 MCPApi().download_skill(skill_id="@author/skill-name", local_dir="./my-skills")
 ```
 
-`modelscope skills add` 参数：
+`modelscope skills add` parameters:
 
-| 参数 | 说明 |
+| Parameter | Description |
 |------|------|
-| `skill_ids` | 位置参数，一个或多个技能 ID（格式 `@author/name`） |
-| `--local_dir DIR` | 安装目录（默认 `~/.agents/skills`） |
+| `skill_ids` | Positional argument; one or more skill IDs (format `@author/name`) |
+| `--local_dir DIR` | Install directory (default `~/.agents/skills`) |
 | `--token TOKEN` | Access Token |
-| `--max-workers N` | 并发下载数（默认 8） |
+| `--max-workers N` | Number of concurrent downloads (default 8) |
 
-### 发布技能（速查）
+### Publish Skill (Quick Reference)
 
 ```bash
-# Step 1: 上传 zip 包（zip 根目录须仅含 1 个 SKILL.md）
-curl -X POST "https://modelscope.cn/openapi/v1/files/upload" \
+# Step 1: Upload the zip package (the zip root must contain exactly 1 SKILL.md)
+curl -X POST "$MODELSCOPE_ENDPOINT/openapi/v1/files/upload" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -F "file=@my-skill.zip" -F "type=skill"
-# → 响应 {"data": {"id": "<uuid>"}}；取 data.id 作为下一步的 skill_file（注意键名是 id，不是 file_id）
+# → Response {"data": {"id": "<uuid>"}}; use data.id as the skill_file for the next step (note the key is id, not file_id)
 
-# Step 2: 创建技能（skill_file 传上一步的 data.id）
-curl -X POST "https://modelscope.cn/openapi/v1/skills" \
+# Step 2: Create the skill (skill_file takes the data.id from the previous step)
+curl -X POST "$MODELSCOPE_ENDPOINT/openapi/v1/skills" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"owner": "username", "skill_name": "my-skill", "display_name": "My Skill", "skill_file": "<data.id>", "category": "developer-tools"}'
 ```
 
-### 更新技能设置
+### Update Skill Settings
 
 ```bash
-curl -X PATCH "https://modelscope.cn/openapi/v1/skills/{owner}/{skill_name}/settings" \
+curl -X PATCH "$MODELSCOPE_ENDPOINT/openapi/v1/skills/{owner}/{skill_name}/settings" \
   -H "Authorization: Bearer $MODELSCOPE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"display_name": "新名称", "description": "更新描述", "skill_file": "<new_file_id>"}'
+  -d '{"display_name": "New name", "description": "Updated description", "skill_file": "<new_file_id>"}'
 ```
 
-可更新字段：`display_name`, `description`, `skill_file`, `tags`, `source_url`, `category`, `license`。不可修改：`owner`, `skill_name`。
+Updatable fields: `display_name`, `description`, `skill_file`, `tags`, `source_url`, `category`, `license`. Not modifiable: `owner`, `skill_name`.
 
-## 缓存管理
+## Cache Management
 
 ```bash
-ms scan-cache                              # 查看本地缓存
-ms scan-cache --dir ~/.cache/modelscope    # 指定缓存目录
-ms clear-cache                             # 清理缓存
+ms scan-cache                              # View local cache
+ms scan-cache --dir ~/.cache/modelscope    # Specify cache directory
+ms clear-cache                             # Clear cache
 ```
 
-## 已知限制
+## Known Limitations
 
-| 域 | 限制 | 说明 |
+| Domain | Limitation | Notes |
 |----|------|------|
-| Hub | 无 PR 系统 | 协作通过直接 push 完成 |
-| Hub | 无行级预览 API | 需 SDK 本地加载检查 |
-| Hub | 分页上限 | `page_number × page_size ≤ 3000`；`/models` 单页 `page_size ≤ 50` |
-| Hub | 默认分支 master | 非 main |
-| Hub | 标签不可删除 | 只能创建 |
-| Hub | 仓库/文件删除仅网页控制台 | `delete_repo`/`delete_files` 在 token 下 401，编程不可删 |
-| Studio | Docker 需实名 | 阿里云账号绑定 |
-| Studio | 端口固定 7860 | 不可用 8080 |
-| Studio | 无编程删除 | OpenAPI `DELETE /studios/{id}` 返回 404；SDK/CLI `delete_repo` 废弃且不支持 studio。删除需网页控制台，编程侧只能 `stop` |
-| MCP | 部署 `transport_type` 必填 | 合法 `sse`/`streamable_http`，否则 HTTP 400 |
-| MCP | 分页上限 ≤ 100 | `page × size > 100` 返回 HTTP 403 |
-| MCP | SDK 无部署/卸载 | 使用 CLI `ms mcp deploy/undeploy` 或 OpenAPI |
-| Skills | CLI 仅支持 `add` | 暂无 `list`/`update`/`remove` 子命令 |
+| Hub | No PR system | Collaboration is done via direct push |
+| Hub | No row-level preview API | Requires SDK local loading to inspect |
+| Hub | Pagination limit | `page_number × page_size ≤ 3000`; `/models` single page `page_size ≤ 50` |
+| Hub | Default branch master | Not main |
+| Hub | Tags cannot be deleted | Can only be created |
+| Hub | Repository/file deletion via web console only | `delete_repo`/`delete_files` return 401 under token; cannot delete programmatically |
+| Studio | Docker requires real-name verification | Alibaba Cloud account binding |
+| Studio | Port fixed at 7860 | 8080 cannot be used |
+| Studio | No programmatic deletion | OpenAPI `DELETE /studios/{id}` returns 404; SDK/CLI `delete_repo` is deprecated and does not support studio. Deletion requires the web console; programmatically you can only `stop` |
+| MCP | Deployment `transport_type` required | Valid `sse`/`streamable_http`, otherwise HTTP 400 |
+| MCP | Pagination limit ≤ 100 | `page × size > 100` returns HTTP 403 |
+| MCP | SDK has no deploy/undeploy | Use the CLI `ms mcp deploy/undeploy` or OpenAPI |
+| Skills | CLI supports only `add` | No `list`/`update`/`remove` subcommands yet |
 
-## 工具脚本
+## Helper Scripts
 
-| 脚本 | 用途 |
+| Script | Purpose |
 |------|------|
-| `scripts/ms_read_file.py` | 下载并读取仓库文件内容 |
-| `scripts/ms_inspect_dataset.py` | 深度检查数据集结构和内容 |
+| `scripts/ms_read_file.py` | Download and read repository file content |
+| `scripts/ms_inspect_dataset.py` | Deeply inspect dataset structure and content |
 
-两种执行方式（任选其一）：
+Two ways to run (choose either):
 
 ```bash
-# 方式一：已安装 modelscope 的环境直接用 python（与「环境要求」一致）
+# Option 1: use python directly in an environment with modelscope installed (consistent with "Requirements")
 python scripts/ms_inspect_dataset.py --dataset_id "AI-ModelScope/alpaca-gpt4-data-zh" --operation full
 
-# 方式二：uv 零配置（脚本含 PEP 723 内联依赖，自动建临时环境）
+# Option 2: uv zero-config (the script includes PEP 723 inline dependencies and auto-creates a temporary environment)
 uv run scripts/ms_inspect_dataset.py --dataset_id "AI-ModelScope/alpaca-gpt4-data-zh" --operation full
 ```
 
-## 与专项 Skill / references 的关系
+## Relationship to the Dedicated Skill / references
 
-| 域 | 在 ms-hub | 展开位置 |
+| Domain | In ms-hub | Expanded location |
 |----|-----------|----------|
-| Studio | 速查：创建/部署/停止/日志 | **ms-studio-deploy**（完整部署流程、代码同步、诊断修复，API 优先） |
-| MCP | 速查：搜索/详情/部署/卸载/已部署 | `references/mcp-services.md`（IDE 配置模板、完整编排、字段差异） |
-| Skills | 速查：搜索/详情/安装/发布/更新 | `references/skills-center.md`（分类体系、打包规范、发布流程） |
+| Studio | Quick reference: create/deploy/stop/logs | **ms-studio-deploy** (full deployment workflow, code sync, diagnosis and repair, API-first) |
+| MCP | Quick reference: search/details/deploy/undeploy/deployed | `references/mcp-services.md` (IDE configuration templates, full orchestration, field differences) |
+| Skills | Quick reference: search/details/install/publish/update | `references/skills-center.md` (category system, packaging spec, publish workflow) |
